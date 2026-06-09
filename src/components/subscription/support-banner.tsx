@@ -52,9 +52,9 @@ export function SupportBanner({
               : "Apoya el desarrollo de NutriAI"}
           </p>
           <p className="text-xs text-muted-foreground">
-            Mantén la app viva por solo{" "}
+            Planes desde{" "}
             <span className="font-semibold text-foreground">
-              {env.monthlyPrice || "una mensualidad"}
+              {env.priceGeneral || "una mensualidad"}
             </span>
             {env.paymentKey ? (
               <>

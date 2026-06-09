@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
-import { createMealRepository } from "@/infrastructure/supabase/repositories";
+import {
+  createFoodRepository,
+  createMealRepository,
+} from "@/infrastructure/supabase/repositories";
+import type { Food } from "@/core/domain/entities";
 
 const itemSchema = z.object({
   name: z.string().min(1),
@@ -72,6 +76,14 @@ export async function saveMeal(
   revalidatePath("/dashboard");
   revalidatePath("/log");
   return { ok: true };
+}
+
+/** Busca alimentos del catálogo (para el registro manual, sin IA). */
+export async function searchFoods(query: string): Promise<Food[]> {
+  const user = await getCurrentUser();
+  if (!user || !query.trim()) return [];
+  const supabase = await createClient();
+  return createFoodRepository(supabase).search(query, 12);
 }
 
 export async function deleteMeal(id: string): Promise<{ ok: boolean }> {

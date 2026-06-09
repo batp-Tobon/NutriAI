@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
+import { createClient } from "@/infrastructure/supabase/server";
+import { getUserAccess } from "@/server/access";
 import {
   createConversationRepository,
   createMealRepository,
@@ -7,16 +8,22 @@ import {
 import { coachReply, type CoachMessage } from "@/infrastructure/openai/coach";
 import { sumMacros } from "@/core/application/nutrition";
 import { GOAL_LABELS } from "@/lib/constants";
-import { isOpenAIConfigured } from "@/lib/env";
+import { env, isOpenAIConfigured } from "@/lib/env";
 import { todayISO } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) {
+  const { userId, access } = await getUserAccess();
+  if (!userId) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+  if (!access.aiEnabled) {
+    return NextResponse.json(
+      { error: "El Coach IA es del plan IA. Cambia de plan para usarlo." },
+      { status: 403 },
+    );
   }
   if (!isOpenAIConfigured()) {
     return NextResponse.json(
@@ -37,21 +44,35 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
+
+  // Cuota mensual de IA (admins exentos)
+  if (access.state !== "admin") {
+    const { data: allowed } = await supabase.rpc("consume_ai_credit", {
+      p_limit: env.aiMonthlyLimit,
+    });
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Alcanzaste tu límite mensual de usos de IA." },
+        { status: 429 },
+      );
+    }
+  }
+
   const conversations = createConversationRepository(supabase);
 
   try {
-    const conversation = await conversations.getOrCreateDefault(user.id);
+    const conversation = await conversations.getOrCreateDefault(userId);
 
     await conversations.addMessage({
       conversation_id: conversation.id,
-      user_id: user.id,
+      user_id: userId,
       role: "user",
       content: message,
     });
 
     const allMessages = await conversations.listMessages(
       conversation.id,
-      user.id,
+      userId,
     );
     const history: CoachMessage[] = allMessages
       .filter((m) => m.role === "user" || m.role === "assistant")
@@ -62,10 +83,10 @@ export async function POST(request: Request) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single();
     const meals = await createMealRepository(supabase).listByDate(
-      user.id,
+      userId,
       todayISO(),
     );
     const consumed = sumMacros(
@@ -92,7 +113,7 @@ export async function POST(request: Request) {
 
     await conversations.addMessage({
       conversation_id: conversation.id,
-      user_id: user.id,
+      user_id: userId,
       role: "assistant",
       content: reply,
     });

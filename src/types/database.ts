@@ -45,6 +45,9 @@ export interface Database {
           onboarding_completed: boolean;
           trial_ends_at: string | null;
           subscribed_until: string | null;
+          plan: "general" | "ai";
+          ai_uses: number;
+          ai_period_start: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -229,6 +232,7 @@ export interface Database {
       is_admin: { Args: Record<string, never>; Returns: boolean };
       recalc_meal_totals: { Args: { p_meal_id: string }; Returns: undefined };
       delete_old_data: { Args: Record<string, never>; Returns: undefined };
+      consume_ai_credit: { Args: { p_limit: number }; Returns: boolean };
     };
     Enums: {
       user_role: UserRole;

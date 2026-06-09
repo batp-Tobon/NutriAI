@@ -3,12 +3,22 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Camera, Loader2, Sparkles, Trash2, Type } from "lucide-react";
+import {
+  Camera,
+  Loader2,
+  Lock,
+  Search,
+  Sparkles,
+  Trash2,
+  Type,
+} from "lucide-react";
 import { createClient } from "@/infrastructure/supabase/client";
-import { saveMeal } from "@/server/actions/meals";
+import { saveMeal, searchFoods } from "@/server/actions/meals";
+import { macrosForGrams } from "@/core/application/nutrition";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -21,6 +31,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MEAL_TYPE_LABELS } from "@/lib/constants";
 import { round } from "@/lib/utils";
 import type { MealType } from "@/types/database";
+import type { Food } from "@/core/domain/entities";
 
 type Item = {
   name: string;
@@ -30,6 +41,7 @@ type Item = {
   carbs: number;
   fat: number;
 };
+type Tab = "photo" | "text" | "manual";
 
 function defaultMealType(): MealType {
   const h = new Date().getHours();
@@ -39,11 +51,11 @@ function defaultMealType(): MealType {
   return "snack";
 }
 
-export function LogClient() {
+export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [tab, setTab] = useState<"photo" | "text">("photo");
+  const [tab, setTab] = useState<Tab>(aiEnabled ? "photo" : "manual");
   const [mealType, setMealType] = useState<MealType>(defaultMealType());
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -53,6 +65,11 @@ export function LogClient() {
   const [name, setName] = useState("");
   const [confidence, setConfidence] = useState<number | null>(null);
   const [items, setItems] = useState<Item[] | null>(null);
+
+  // Registro manual (catálogo)
+  const [foodQuery, setFoodQuery] = useState("");
+  const [foodResults, setFoodResults] = useState<Food[]>([]);
+  const [searchingFood, setSearchingFood] = useState(false);
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -96,6 +113,29 @@ export function LogClient() {
     } finally {
       setAnalyzing(false);
     }
+  }
+
+  async function findFoods() {
+    if (!foodQuery.trim()) return;
+    setSearchingFood(true);
+    try {
+      setFoodResults(await searchFoods(foodQuery));
+    } catch {
+      toast.error("Error al buscar");
+    } finally {
+      setSearchingFood(false);
+    }
+  }
+
+  function addFood(f: Food) {
+    const m = macrosForGrams(f, 100);
+    setConfidence(null);
+    setItems((prev) => [
+      ...(prev ?? []),
+      { name: f.name, grams: 100, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat },
+    ]);
+    if (!name) setName("Comida");
+    toast.success("Alimento añadido");
   }
 
   function updateGrams(idx: number, grams: number) {
@@ -152,18 +192,19 @@ export function LogClient() {
       const res = await saveMeal({
         name: name || "Comida",
         meal_type: mealType,
-        source: tab === "photo" ? "photo" : "text",
+        source: tab === "photo" ? "photo" : tab === "text" ? "text" : "manual",
         image_url,
         ai_confidence: confidence,
         items,
       });
       if (!res.ok) throw new Error(res.error);
       toast.success("Comida registrada");
-      // reset
       setItems(null);
       setFile(null);
       setPreview(null);
       setDescription("");
+      setFoodResults([]);
+      setFoodQuery("");
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al guardar");
@@ -175,13 +216,26 @@ export function LogClient() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "photo" | "text")}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList>
             <TabsTrigger value="photo">
-              <Camera className="mr-1 h-4 w-4" /> Foto
+              {aiEnabled ? (
+                <Camera className="mr-1 h-4 w-4" />
+              ) : (
+                <Lock className="mr-1 h-4 w-4" />
+              )}{" "}
+              Foto
             </TabsTrigger>
             <TabsTrigger value="text">
-              <Type className="mr-1 h-4 w-4" /> Texto
+              {aiEnabled ? (
+                <Type className="mr-1 h-4 w-4" />
+              ) : (
+                <Lock className="mr-1 h-4 w-4" />
+              )}{" "}
+              Texto
+            </TabsTrigger>
+            <TabsTrigger value="manual">
+              <Search className="mr-1 h-4 w-4" /> Manual
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -199,7 +253,24 @@ export function LogClient() {
         </Select>
       </div>
 
-      {tab === "photo" ? (
+      {/* IA bloqueada en plan General */}
+      {(tab === "photo" || tab === "text") && !aiEnabled && (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
+            <Lock className="h-7 w-7 text-muted-foreground" />
+            <p className="text-sm font-semibold">Análisis con IA</p>
+            <p className="text-xs text-muted-foreground">
+              Disponible en el plan IA. Con tu plan General usa la pestaña
+              <b> Manual</b> para registrar tus comidas.
+            </p>
+            <Button size="sm" className="mt-1" onClick={() => setTab("manual")}>
+              Ir a Manual
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "photo" && aiEnabled && (
         <Card>
           <CardContent className="pt-5">
             <input
@@ -249,7 +320,9 @@ export function LogClient() {
             </div>
           </CardContent>
         </Card>
-      ) : (
+      )}
+
+      {tab === "text" && aiEnabled && (
         <Card>
           <CardContent className="space-y-3 pt-5">
             <Textarea
@@ -274,13 +347,56 @@ export function LogClient() {
         </Card>
       )}
 
-      {items && (
+      {tab === "manual" && (
+        <Card>
+          <CardContent className="space-y-3 pt-5">
+            <div className="flex gap-2">
+              <Input
+                value={foodQuery}
+                onChange={(e) => setFoodQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && findFoods()}
+                placeholder="Busca un alimento (pollo, arroz…)"
+              />
+              <Button variant="secondary" onClick={findFoods} disabled={searchingFood}>
+                {searchingFood ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            {foodResults.length > 0 && (
+              <div className="space-y-1.5">
+                {foodResults.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => addFood(f)}
+                    className="flex w-full items-center justify-between rounded-lg bg-secondary/40 px-3 py-2 text-left text-sm transition-colors hover:bg-secondary"
+                  >
+                    <span className="truncate">{f.name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {f.kcal_per_100g} kcal/100g
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {items && items.length > 0 && (
         <Card className="animate-fade-in">
           <CardContent className="space-y-3 pt-5">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold">{name || "Comida"}</h3>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Nombre de la comida"
+                className="h-9 flex-1"
+              />
               {confidence != null && (
-                <Badge>{Math.round(confidence * 100)}% confianza</Badge>
+                <Badge className="ml-2">{Math.round(confidence * 100)}%</Badge>
               )}
             </div>
 

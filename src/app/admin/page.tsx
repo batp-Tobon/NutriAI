@@ -45,7 +45,9 @@ export default async function AdminPage() {
 
   const { data: recent } = await admin
     .from("profiles")
-    .select("id, email, full_name, role, created_at, trial_ends_at, subscribed_until")
+    .select(
+      "id, email, full_name, role, created_at, trial_ends_at, subscribed_until, plan",
+    )
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -93,12 +95,20 @@ export default async function AdminPage() {
                       <td className="p-3">
                         <StatusBadge
                           state={access.state}
+                          plan={access.plan}
                           daysLeft={access.daysLeft}
                         />
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3">
                         {access.state !== "admin" && (
-                          <ActivateButton userId={u.id} />
+                          <div className="flex justify-end gap-1.5">
+                            <ActivateButton
+                              userId={u.id}
+                              plan="general"
+                              label="General"
+                            />
+                            <ActivateButton userId={u.id} plan="ai" label="IA" />
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -125,14 +135,20 @@ export default async function AdminPage() {
 
 function StatusBadge({
   state,
+  plan,
   daysLeft,
 }: {
   state: "admin" | "trial" | "subscribed" | "expired";
+  plan: "general" | "ai";
   daysLeft: number;
 }) {
   if (state === "admin") return <Badge variant="secondary">Admin</Badge>;
   if (state === "subscribed")
-    return <Badge>Activo · {daysLeft}d</Badge>;
+    return (
+      <Badge>
+        Activo {plan === "ai" ? "IA" : "Gen"} · {daysLeft}d
+      </Badge>
+    );
   if (state === "trial")
     return <Badge variant="secondary">Prueba · {daysLeft}d</Badge>;
   return <Badge variant="destructive">Vencido</Badge>;

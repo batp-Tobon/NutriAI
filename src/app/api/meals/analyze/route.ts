@@ -1,21 +1,41 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/infrastructure/supabase/server";
+import { createClient } from "@/infrastructure/supabase/server";
+import { getUserAccess } from "@/server/access";
 import { analyzeMeal } from "@/infrastructure/openai/meal-vision";
-import { isOpenAIConfigured } from "@/lib/env";
+import { env, isOpenAIConfigured } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) {
+  const { userId, access } = await getUserAccess();
+  if (!userId) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+  if (!access.aiEnabled) {
+    return NextResponse.json(
+      { error: "El análisis con IA es del plan IA. Cambia de plan para usarlo." },
+      { status: 403 },
+    );
   }
   if (!isOpenAIConfigured()) {
     return NextResponse.json(
       { error: "OpenAI no está configurado. Añade OPENAI_API_KEY en .env.local." },
       { status: 400 },
     );
+  }
+  // Cuota mensual de IA (los admins están exentos)
+  if (access.state !== "admin") {
+    const supabase = await createClient();
+    const { data: allowed } = await supabase.rpc("consume_ai_credit", {
+      p_limit: env.aiMonthlyLimit,
+    });
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Alcanzaste tu límite mensual de usos de IA." },
+        { status: 429 },
+      );
+    }
   }
 
   let body: { imageDataUrl?: string; description?: string };

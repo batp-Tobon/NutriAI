@@ -9,8 +9,10 @@ import {
   generateWorkoutFromPool,
 } from "@/infrastructure/openai/workout-generator";
 import { fetchExercisePool } from "@/infrastructure/exercisedb/client";
-import { isOpenAIConfigured } from "@/lib/env";
+import { getUserAccess } from "@/server/access";
+import { env, isOpenAIConfigured } from "@/lib/env";
 import { WORKOUT_TYPE_LABELS } from "@/lib/constants";
+import { BASE_WEEK } from "@/lib/base-week";
 import type { WorkoutType } from "@/types/database";
 
 const schema = z.object({
@@ -38,8 +40,14 @@ const schema = z.object({
 export async function createWorkout(
   input: z.input<typeof schema>,
 ): Promise<{ ok: boolean; error?: string }> {
-  const user = await getCurrentUser();
-  if (!user) return { ok: false, error: "No autenticado" };
+  const { userId, access } = await getUserAccess();
+  if (!userId) return { ok: false, error: "No autenticado" };
+  if (!access.aiEnabled) {
+    return {
+      ok: false,
+      error: "Generar rutinas con IA es del plan IA. Crea una rutina manual o cambia de plan.",
+    };
+  }
   if (!isOpenAIConfigured()) {
     return { ok: false, error: "OpenAI no configurado (OPENAI_API_KEY)." };
   }
@@ -49,6 +57,18 @@ export async function createWorkout(
   const v = parsed.data;
 
   try {
+    const supabase = await createClient();
+
+    // Cuota mensual de IA (admins exentos)
+    if (access.state !== "admin") {
+      const { data: allowed } = await supabase.rpc("consume_ai_credit", {
+        p_limit: env.aiMonthlyLimit,
+      });
+      if (!allowed) {
+        return { ok: false, error: "Alcanzaste tu límite mensual de usos de IA." };
+      }
+    }
+
     // Con ExerciseDB → ejercicios reales con GIF; sin él → rutina en texto.
     const pool = await fetchExercisePool(v.workoutType, v.focus).catch(() => []);
     const gen =
@@ -56,9 +76,8 @@ export async function createWorkout(
         ? await generateWorkoutFromPool(v, pool)
         : await generateWorkout(v);
 
-    const supabase = await createClient();
     await createWorkoutRepository(supabase).create({
-      user_id: user.id,
+      user_id: userId,
       title: gen.title,
       workout_type: v.workoutType,
       goal: v.goal,
@@ -165,6 +184,34 @@ export async function saveManualWorkout(
 
   revalidatePath("/plan");
   return { ok: true };
+}
+
+/** Carga la semana base recomendada (6 rutinas listas) para el usuario. */
+export async function loadBaseWeek(): Promise<{
+  ok: boolean;
+  error?: string;
+  count?: number;
+}> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+
+  const supabase = await createClient();
+  const rows = BASE_WEEK.map((r) => ({
+    user_id: user.id,
+    title: r.title,
+    workout_type: r.workout_type,
+    goal: r.goal,
+    duration_min: r.duration_min,
+    difficulty: r.difficulty,
+    plan: r.plan,
+    ai_generated: false,
+  }));
+
+  const { error } = await supabase.from("workouts").insert(rows);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/plan");
+  return { ok: true, count: rows.length };
 }
 
 export async function deleteWorkout(id: string): Promise<{ ok: boolean }> {

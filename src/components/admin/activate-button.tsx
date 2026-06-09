@@ -7,26 +7,39 @@ import { Loader2 } from "lucide-react";
 import { activateMonth } from "@/server/actions/admin";
 import { Button } from "@/components/ui/button";
 
-export function ActivateButton({ userId }: { userId: string }) {
+export function ActivateButton({
+  userId,
+  plan,
+  label,
+}: {
+  userId: string;
+  plan: "general" | "ai";
+  label: string;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
   function activate() {
     start(async () => {
-      const res = await activateMonth(userId);
+      const res = await activateMonth(userId, plan);
       if (!res.ok) {
         toast.error(res.error ?? "Error");
         return;
       }
-      toast.success("Mes activado (+30 días)");
+      toast.success(`Plan ${label} activado (+30 días)`);
       router.refresh();
     });
   }
 
   return (
-    <Button size="sm" variant="secondary" onClick={activate} disabled={pending}>
+    <Button
+      size="sm"
+      variant={plan === "ai" ? "default" : "secondary"}
+      onClick={activate}
+      disabled={pending}
+    >
       {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-      +1 mes
+      {label}
     </Button>
   );
 }

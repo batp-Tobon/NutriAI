@@ -15,9 +15,12 @@ export const env = {
     .filter(Boolean),
   // Suscripción / apoyo (Bre-B · Nequi / Bancolombia)
   paymentKey: process.env.NEXT_PUBLIC_PAYMENT_KEY ?? "",
-  monthlyPrice: process.env.NEXT_PUBLIC_MONTHLY_PRICE ?? "",
+  priceGeneral: process.env.NEXT_PUBLIC_PRICE_GENERAL ?? "",
+  priceAi: process.env.NEXT_PUBLIC_PRICE_AI ?? "",
   supportWhatsapp: process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? "",
   cronSecret: process.env.CRON_SECRET ?? "",
+  // Límite mensual de usos de IA por usuario (control de costos)
+  aiMonthlyLimit: Number(process.env.AI_MONTHLY_LIMIT ?? "200"),
 };
 
 export const isSupabaseConfigured = () =>

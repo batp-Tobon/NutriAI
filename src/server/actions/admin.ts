@@ -21,9 +21,10 @@ async function assertAdmin() {
   return isAdmin ? user : null;
 }
 
-/** Activa (o extiende) 1 mes de suscripción a un usuario. Pago manual por Nequi. */
+/** Activa (o extiende) 1 mes del plan elegido. Pago manual por Bre-B. */
 export async function activateMonth(
   userId: string,
+  plan: "general" | "ai",
 ): Promise<{ ok: boolean; error?: string }> {
   if (!(await assertAdmin())) return { ok: false, error: "No autorizado" };
 
@@ -43,7 +44,7 @@ export async function activateMonth(
 
   const { error } = await db
     .from("profiles")
-    .update({ subscribed_until: current.toISOString() })
+    .update({ subscribed_until: current.toISOString(), plan })
     .eq("id", userId);
 
   if (error) return { ok: false, error: error.message };

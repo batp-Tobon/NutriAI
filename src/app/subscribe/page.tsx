@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import { getAccess } from "@/core/application/subscription";
 import { Card, CardContent } from "@/components/ui/card";
@@ -65,34 +65,47 @@ export default async function SubscribePage() {
             </>
           )}
 
-          {/* Datos de pago Bre-B */}
+          {/* Planes */}
+          <div className="grid gap-3 text-left">
+            <PlanCard
+              name="General"
+              price={env.priceGeneral}
+              features={[
+                "Registro de comidas manual",
+                "Constructor de rutinas + semana base",
+                "Peso, medidas y progreso",
+              ]}
+            />
+            <PlanCard
+              name="IA"
+              highlight
+              price={env.priceAi}
+              features={[
+                "Todo lo del plan General",
+                "Análisis de comida por foto (IA)",
+                "Coach IA + generador de rutinas",
+              ]}
+            />
+          </div>
+
+          {/* Pago Bre-B */}
           <div className="rounded-2xl bg-secondary/40 p-4 text-left">
             <p className="text-center text-xs font-semibold uppercase tracking-wide text-primary">
               Pago por Bre-B (Nequi / Bancolombia)
             </p>
-
             <div className="my-3">
               <PaymentQR />
             </div>
-
-            <div className="space-y-1 text-sm">
-              <p>
-                <span className="text-muted-foreground">Llave Bre-B:</span>{" "}
-                <span className="font-bold">
-                  {env.paymentKey || "(configura tu llave)"}
-                </span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Mensualidad:</span>{" "}
-                <span className="font-bold">
-                  {env.monthlyPrice || "(configura el precio)"}
-                </span>
-              </p>
-            </div>
+            <p className="text-sm">
+              <span className="text-muted-foreground">Llave Bre-B:</span>{" "}
+              <span className="font-bold">
+                {env.paymentKey || "(configura tu llave)"}
+              </span>
+            </p>
             <p className="mt-3 text-xs text-muted-foreground">
-              Paga con tu app (Nequi, Bancolombia, etc.) a la llave indicada y
-              envíanos el comprobante para activar tu mes. La activación es
-              manual (24 h máx).
+              Paga a la llave el plan que quieras y envíanos el comprobante
+              (indica el plan elegido) para activarlo. Activación manual (24 h
+              máx).
               {env.adminEmails[0] && (
                 <>
                   {" "}
@@ -106,6 +119,47 @@ export default async function SubscribePage() {
           <SubscribeActions userEmail={user.email} />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function PlanCard({
+  name,
+  price,
+  features,
+  highlight,
+}: {
+  name: string;
+  price: string;
+  features: string[];
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={
+        highlight
+          ? "rounded-2xl border border-primary/40 bg-primary/5 p-4"
+          : "rounded-2xl border border-border bg-card p-4"
+      }
+    >
+      <div className="flex items-baseline justify-between">
+        <p className="font-bold">
+          Plan {name}
+          {highlight && <span className="ml-1 text-primary">★</span>}
+        </p>
+        <p className="text-lg font-extrabold">
+          {price || "—"}
+          <span className="text-xs font-normal text-muted-foreground">/mes</span>
+        </p>
+      </div>
+      <ul className="mt-2 space-y-1">
+        {features.map((f, i) => (
+          <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+            {f}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

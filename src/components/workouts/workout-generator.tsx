@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Lock, Sparkles } from "lucide-react";
 import { createWorkout } from "@/server/actions/workouts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import {
 } from "@/lib/constants";
 import type { Goal, WorkoutType } from "@/types/database";
 
-export function WorkoutGenerator() {
+export function WorkoutGenerator({ aiEnabled }: { aiEnabled: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [form, setForm] = useState({
@@ -47,6 +47,21 @@ export function WorkoutGenerator() {
       toast.success("Rutina generada");
       router.refresh();
     });
+  }
+
+  if (!aiEnabled) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-6 text-center">
+          <Lock className="h-6 w-6 text-muted-foreground" />
+          <p className="text-sm font-semibold">Generador con IA</p>
+          <p className="text-xs text-muted-foreground">
+            Disponible en el plan IA. Con tu plan General puedes crear rutinas
+            manuales y usar la semana base recomendada.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

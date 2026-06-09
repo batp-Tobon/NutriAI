@@ -2,9 +2,11 @@ import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import { createWorkoutRepository } from "@/infrastructure/supabase/repositories";
+import { getUserAccess } from "@/server/access";
 import { WorkoutGenerator } from "@/components/workouts/workout-generator";
 import { WorkoutCard } from "@/components/workouts/workout-card";
 import { ActivityTracker } from "@/components/workouts/activity-tracker";
+import { LoadBaseWeekButton } from "@/components/workouts/load-base-week";
 import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Entrenamiento" };
@@ -14,6 +16,7 @@ export default async function PlanPage() {
   const supabase = await createClient();
   const repo = createWorkoutRepository(supabase);
 
+  const { access } = await getUserAccess();
   const workouts = await repo.list(user!.id, 30);
   const since = new Date(Date.now() - 90 * 864e5).toISOString();
   const dates = await repo.completedDates(user!.id, since);
@@ -36,12 +39,13 @@ export default async function PlanPage() {
         <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
           Generar rutina
         </h2>
-        <WorkoutGenerator />
+        <WorkoutGenerator aiEnabled={access.aiEnabled} />
         <Button asChild variant="outline" className="mt-3 w-full">
           <Link href="/plan/new">
             <Pencil className="h-4 w-4" /> Crear rutina manual
           </Link>
         </Button>
+        {routines.length === 0 && <LoadBaseWeekButton />}
       </div>
 
       <div className="space-y-2">
