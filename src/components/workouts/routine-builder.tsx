@@ -278,7 +278,7 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && search()}
-              placeholder="Ej: squat, curl, press…"
+              placeholder="Ej: press inclinado mancuerna, sentadilla, curl bíceps…"
             />
             <Button
               type="button"
