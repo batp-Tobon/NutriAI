@@ -3,6 +3,7 @@ import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import { AppHeader } from "@/components/layout/app-header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { getAccess } from "@/core/application/subscription";
 
 export default async function AppLayout({
   children,
@@ -22,6 +23,11 @@ export default async function AppLayout({
   // Forzar onboarding si el perfil no está completo
   if (profile && !profile.onboarding_completed) {
     redirect("/onboarding");
+  }
+
+  // Paywall: prueba de 5 días → luego mensualidad (admins exentos)
+  if (profile && !getAccess(profile).hasAccess) {
+    redirect("/subscribe");
   }
 
   return (

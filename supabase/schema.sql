@@ -3,7 +3,6 @@
 -- Pega TODO esto en el SQL Editor de Supabase y pulsa RUN.
 -- ============================================================================
 
-
 -- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 -- 20260608000001_init_schema.sql
 -- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -480,5 +479,68 @@ values
   ('Espinaca',                       23,  2.9, 3.6,  0.4, true),
   ('Zanahoria',                      41,  0.9, 9.6,  0.2, true)
 on conflict do nothing;
+
+
+-- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+-- 20260608000005_subscription.sql
+-- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+-- ============================================================================
+-- NutriAI Â· 0005 Â· SuscripciÃ³n (prueba 5 dÃ­as + mensualidad) y retenciÃ³n 90 dÃ­as
+-- Ejecuta este archivo en el SQL Editor de Supabase (una vez).
+-- ============================================================================
+
+-- ---------- Columnas de suscripciÃ³n en profiles ----------
+alter table public.profiles
+  add column if not exists trial_ends_at    timestamptz,
+  add column if not exists subscribed_until timestamptz;
+
+-- Backfill: a los perfiles ya existentes les damos 5 dÃ­as desde su creaciÃ³n.
+update public.profiles
+set trial_ends_at = created_at + interval '5 days'
+where trial_ends_at is null;
+
+-- ---------- Trigger: asignar prueba de 5 dÃ­as al registrarse ----------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email, full_name, avatar_url, trial_ends_at)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name'),
+    new.raw_user_meta_data->>'avatar_url',
+    now() + interval '5 days'
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+-- ---------- RetenciÃ³n: borrar datos con mÃ¡s de 90 dÃ­as ----------
+create or replace function public.delete_old_data()
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  delete from public.meals        where consumed_at < now() - interval '90 days';
+  delete from public.progress     where recorded_at < (now() - interval '90 days')::date;
+  delete from public.measurements where recorded_at < (now() - interval '90 days')::date;
+  delete from public.workouts     where created_at  < now() - interval '90 days';
+  delete from public.notifications where created_at < now() - interval '90 days';
+  delete from public.ai_messages  where created_at  < now() - interval '90 days';
+  -- conversaciones vacÃ­as y antiguas
+  delete from public.ai_conversations c
+  where c.updated_at < now() - interval '90 days'
+    and not exists (select 1 from public.ai_messages m where m.conversation_id = c.id);
+end;
+$$;
+
+grant execute on function public.delete_old_data() to service_role;
+
+-- (meal_items se borra solo por ON DELETE CASCADE al borrar su meal)
 
 

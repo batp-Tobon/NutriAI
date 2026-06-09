@@ -1,7 +1,10 @@
 import { Activity, Dumbbell, UtensilsCrossed, Users } from "lucide-react";
 import { createAdminClient } from "@/infrastructure/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/env";
+import { getAccess } from "@/core/application/subscription";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ActivateButton } from "@/components/admin/activate-button";
 
 export const metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -42,9 +45,9 @@ export default async function AdminPage() {
 
   const { data: recent } = await admin
     .from("profiles")
-    .select("email, full_name, created_at, goal")
+    .select("id, email, full_name, role, created_at, trial_ends_at, subscribed_until")
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(15);
 
   return (
     <div className="space-y-6">
@@ -66,28 +69,41 @@ export default async function AdminPage() {
 
       <div>
         <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
-          Usuarios recientes
+          Usuarios y suscripciones
         </h2>
         <Card>
           <CardContent className="p-0">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-muted-foreground">
                 <tr className="border-b border-border/60">
-                  <th className="p-3">Nombre</th>
-                  <th className="p-3">Email</th>
-                  <th className="p-3">Alta</th>
+                  <th className="p-3">Usuario</th>
+                  <th className="p-3">Estado</th>
+                  <th className="p-3 text-right">Acción</th>
                 </tr>
               </thead>
               <tbody>
-                {(recent ?? []).map((u, i) => (
-                  <tr key={i} className="border-b border-border/40 last:border-0">
-                    <td className="p-3 font-medium">{u.full_name ?? "—"}</td>
-                    <td className="p-3 text-muted-foreground">{u.email}</td>
-                    <td className="p-3 text-muted-foreground">
-                      {new Date(u.created_at).toLocaleDateString("es")}
-                    </td>
-                  </tr>
-                ))}
+                {(recent ?? []).map((u) => {
+                  const access = getAccess(u);
+                  return (
+                    <tr key={u.id} className="border-b border-border/40 last:border-0">
+                      <td className="p-3">
+                        <p className="font-medium">{u.full_name ?? "—"}</p>
+                        <p className="text-xs text-muted-foreground">{u.email}</p>
+                      </td>
+                      <td className="p-3">
+                        <StatusBadge
+                          state={access.state}
+                          daysLeft={access.daysLeft}
+                        />
+                      </td>
+                      <td className="p-3 text-right">
+                        {access.state !== "admin" && (
+                          <ActivateButton userId={u.id} />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {(!recent || recent.length === 0) && (
                   <tr>
                     <td
@@ -105,6 +121,21 @@ export default async function AdminPage() {
       </div>
     </div>
   );
+}
+
+function StatusBadge({
+  state,
+  daysLeft,
+}: {
+  state: "admin" | "trial" | "subscribed" | "expired";
+  daysLeft: number;
+}) {
+  if (state === "admin") return <Badge variant="secondary">Admin</Badge>;
+  if (state === "subscribed")
+    return <Badge>Activo · {daysLeft}d</Badge>;
+  if (state === "trial")
+    return <Badge variant="secondary">Prueba · {daysLeft}d</Badge>;
+  return <Badge variant="destructive">Vencido</Badge>;
 }
 
 function Stat({

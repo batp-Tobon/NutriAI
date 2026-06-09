@@ -14,6 +14,7 @@ const PROTECTED_PREFIXES = [
   "/profile",
   "/admin",
   "/onboarding",
+  "/subscribe",
 ];
 const AUTH_PAGES = ["/login", "/register", "/reset-password"];
 

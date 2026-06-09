@@ -43,6 +43,8 @@ export interface Database {
           daily_carbs_target: number | null;
           daily_fat_target: number | null;
           onboarding_completed: boolean;
+          trial_ends_at: string | null;
+          subscribed_until: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -226,6 +228,7 @@ export interface Database {
     Functions: {
       is_admin: { Args: Record<string, never>; Returns: boolean };
       recalc_meal_totals: { Args: { p_meal_id: string }; Returns: undefined };
+      delete_old_data: { Args: Record<string, never>; Returns: undefined };
     };
     Enums: {
       user_role: UserRole;
