@@ -74,71 +74,58 @@ export default async function AdminPage() {
         <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
           Usuarios y suscripciones
         </h2>
-        <Card>
-          <CardContent className="p-0">
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs text-muted-foreground">
-                <tr className="border-b border-border/60">
-                  <th className="p-3">Usuario</th>
-                  <th className="p-3">Estado</th>
-                  <th className="p-3">Vigencia</th>
-                  <th className="p-3 text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(recent ?? []).map((u) => {
-                  const access = getAccess(u);
-                  return (
-                    <tr key={u.id} className="border-b border-border/40 last:border-0">
-                      <td className="p-3">
-                        <p className="font-medium">{u.full_name ?? "—"}</p>
-                        <p className="text-xs text-muted-foreground">{u.email}</p>
-                      </td>
-                      <td className="p-3">
-                        <StatusBadge
-                          state={access.state}
-                          plan={access.plan}
-                          daysLeft={access.daysLeft}
-                        />
-                      </td>
-                      <td className="p-3">
-                        <PeriodCell
-                          state={access.state}
-                          startsAt={u.subscription_started_at}
-                          endsAt={u.subscribed_until}
-                          trialEndsAt={u.trial_ends_at}
-                        />
-                      </td>
-                      <td className="p-3">
-                        {access.state !== "admin" && (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <ActivateButton
-                              userId={u.id}
-                              plan="general"
-                              label="General"
-                            />
-                            <ActivateButton userId={u.id} plan="ai" label="IA" />
-                            <DeleteUserButton userId={u.id} email={u.email} />
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {(!recent || recent.length === 0) && (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="p-6 text-center text-muted-foreground"
-                    >
-                      Sin usuarios todavía.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+        <div className="space-y-2">
+          {(recent ?? []).map((u) => {
+            const access = getAccess(u);
+            return (
+              <Card key={u.id}>
+                <CardContent className="space-y-2 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">
+                        {u.full_name ?? "—"}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {u.email}
+                      </p>
+                    </div>
+                    <StatusBadge
+                      state={access.state}
+                      plan={access.plan}
+                      daysLeft={access.daysLeft}
+                    />
+                  </div>
+
+                  <PeriodCell
+                    state={access.state}
+                    startsAt={u.subscription_started_at}
+                    endsAt={u.subscribed_until}
+                    trialEndsAt={u.trial_ends_at}
+                  />
+
+                  {access.state !== "admin" && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <ActivateButton
+                        userId={u.id}
+                        plan="general"
+                        label="General"
+                      />
+                      <ActivateButton userId={u.id} plan="ai" label="IA" />
+                      <div className="ml-auto">
+                        <DeleteUserButton userId={u.id} email={u.email} />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+          {(!recent || recent.length === 0) && (
+            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              Sin usuarios todavía.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -197,14 +184,10 @@ function PeriodCell({
   }
   if (state === "subscribed") {
     return (
-      <div className="text-xs leading-tight text-muted-foreground">
-        <p>
-          Inicio: <span className="text-foreground">{fmtDate(startsAt)}</span>
-        </p>
-        <p>
-          Fin: <span className="text-foreground">{fmtDate(endsAt)}</span>
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Inicio <span className="text-foreground">{fmtDate(startsAt)}</span> · Fin{" "}
+        <span className="text-foreground">{fmtDate(endsAt)}</span>
+      </p>
     );
   }
   return (
