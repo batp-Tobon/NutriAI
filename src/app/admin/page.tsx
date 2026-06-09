@@ -5,6 +5,7 @@ import { getAccess } from "@/core/application/subscription";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ActivateButton } from "@/components/admin/activate-button";
+import { DeleteUserButton } from "@/components/admin/delete-user-button";
 
 export const metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -101,13 +102,14 @@ export default async function AdminPage() {
                       </td>
                       <td className="p-3">
                         {access.state !== "admin" && (
-                          <div className="flex justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1.5">
                             <ActivateButton
                               userId={u.id}
                               plan="general"
                               label="General"
                             />
                             <ActivateButton userId={u.id} plan="ai" label="IA" />
+                            <DeleteUserButton userId={u.id} email={u.email} />
                           </div>
                         )}
                       </td>

@@ -52,6 +52,34 @@ export async function activateMonth(
   return { ok: true };
 }
 
+/** Elimina por completo a un usuario (cuenta + todos sus datos en cascada). */
+export async function deleteUser(
+  userId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const me = await assertAdmin();
+  if (!me) return { ok: false, error: "No autorizado" };
+  if (me.id === userId) {
+    return { ok: false, error: "No puedes eliminar tu propia cuenta de admin." };
+  }
+
+  const db = createAdminClient();
+  const { data: target } = await db
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (target?.role === "admin") {
+    return { ok: false, error: "No puedes eliminar a otro administrador." };
+  }
+
+  // Borra de auth.users; el resto de tablas caen por ON DELETE CASCADE.
+  const { error } = await db.auth.admin.deleteUser(userId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
 /** Revoca el acceso de pago (deja al usuario sin suscripción activa). */
 export async function revokeSubscription(
   userId: string,
