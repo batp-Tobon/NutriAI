@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -10,6 +11,7 @@ import {
   Clock,
   Dumbbell,
   Loader2,
+  Pencil,
   Trash2,
 } from "lucide-react";
 import { completeWorkout, deleteWorkout } from "@/server/actions/workouts";
@@ -124,6 +126,13 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
               )}
             />
           </button>
+          <Link
+            href={`/plan/${workout.id}/edit`}
+            aria-label="Editar rutina"
+            className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:text-primary"
+          >
+            <Pencil className="h-4 w-4" />
+          </Link>
           <button
             onClick={() => setConfirmOpen(true)}
             aria-label="Eliminar rutina"

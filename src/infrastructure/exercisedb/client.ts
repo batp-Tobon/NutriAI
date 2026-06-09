@@ -125,6 +125,20 @@ function sampleUnique(items: ExercisePoolItem[], max: number): ExercisePoolItem[
  * Devuelve un pool de ejercicios reales (con GIF) adecuado al tipo de
  * entrenamiento. Vacío si ExerciseDB no está configurado.
  */
+/** Busca ejercicios del catálogo por nombre (para el constructor manual). */
+export async function searchExercises(
+  query: string,
+  limit = 8,
+): Promise<ExercisePoolItem[]> {
+  if (!isExerciseDBConfigured() || !query.trim()) return [];
+  const q = encodeURIComponent(query.trim().toLowerCase());
+  try {
+    return await fetchList(`/exercises/name/${q}`, limit);
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchExercisePool(
   type: WorkoutType,
   focus: MuscleFocus = "full",

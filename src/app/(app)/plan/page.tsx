@@ -1,8 +1,11 @@
+import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import { createWorkoutRepository } from "@/infrastructure/supabase/repositories";
 import { WorkoutGenerator } from "@/components/workouts/workout-generator";
 import { WorkoutCard } from "@/components/workouts/workout-card";
 import { ActivityTracker } from "@/components/workouts/activity-tracker";
+import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Entrenamiento" };
 
@@ -34,6 +37,11 @@ export default async function PlanPage() {
           Generar rutina
         </h2>
         <WorkoutGenerator />
+        <Button asChild variant="outline" className="mt-3 w-full">
+          <Link href="/plan/new">
+            <Pencil className="h-4 w-4" /> Crear rutina manual
+          </Link>
+        </Button>
       </div>
 
       <div className="space-y-2">
