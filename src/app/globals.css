@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* NutriAI · tema oscuro con acento lima (siempre oscuro) */
+@layer base {
+  :root {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 84 81% 56%;
+    --primary-foreground: 84 60% 8%;
+
+    --secondary: 0 0% 13%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 13%;
+    --muted-foreground: 0 0% 62%;
+
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 84 81% 56%;
+
+    --radius: 1rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer utilities {
+  /* Anillo de progreso del dashboard */
+  .glow-primary {
+    box-shadow: 0 0 24px -4px hsl(var(--primary) / 0.45);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  /* Safe-area para PWA en móvil (notch / home indicator) */
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+}
