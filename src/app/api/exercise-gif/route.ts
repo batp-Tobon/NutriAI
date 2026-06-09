@@ -4,7 +4,7 @@ import { env, isExerciseDBConfigured } from "@/lib/env";
 export const runtime = "nodejs";
 
 // Sólo proxeamos imágenes desde estos hosts (evita open-proxy / SSRF).
-const ALLOWED_SUFFIXES = ["exercisedb.io", "rapidapi.com"];
+const ALLOWED_SUFFIXES = ["exercisedb.io", "rapidapi.com", "jsdelivr.net"];
 
 /**
  * Proxy de GIFs de ExerciseDB: descarga la imagen en el servidor (añadiendo la

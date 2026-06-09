@@ -215,6 +215,17 @@ function buildPhrase(words: string[]): { phrase: string; movement: string } {
   };
 }
 
+/** Traduce y analiza una consulta (español) para buscar en catálogos en inglés. */
+export function parseExerciseQuery(query: string): {
+  words: string[];
+  phrase: string;
+  movement: string;
+} {
+  const words = translateToWords(query);
+  const { phrase, movement } = buildPhrase(words);
+  return { words, phrase, movement };
+}
+
 /** Busca ejercicios del catálogo; traduce el español al inglés del catálogo. */
 export async function searchExercises(
   query: string,

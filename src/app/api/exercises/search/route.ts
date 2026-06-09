@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/infrastructure/supabase/server";
 import { searchExercises } from "@/infrastructure/exercisedb/client";
+import { searchFreeExercises } from "@/infrastructure/freedb/client";
 
 export const runtime = "nodejs";
 
-/** Busca ejercicios del catálogo por nombre (para añadirlos con GIF). */
+/**
+ * Busca ejercicios combinando 2 catálogos:
+ *  - ExerciseDB (GIFs animados) — primero.
+ *  - Free Exercise DB (fotos, más cobertura) — después.
+ * Traduce la consulta de español a inglés en ambos.
+ */
 export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -13,17 +19,30 @@ export async function GET(request: Request) {
   const q = new URL(request.url).searchParams.get("q") ?? "";
   if (!q.trim()) return NextResponse.json([]);
 
-  try {
-    const results = await searchExercises(q);
-    return NextResponse.json(
-      results.map((r) => ({
-        name: r.name,
-        gif_url: r.gifUrl,
-        target: r.target,
-        equipment: r.equipment,
-      })),
-    );
-  } catch {
-    return NextResponse.json([]);
+  const [edb, free] = await Promise.all([
+    searchExercises(q).catch(() => []),
+    searchFreeExercises(q).catch(() => []),
+  ]);
+
+  // Mezcla: primero los GIF de ExerciseDB, luego las fotos; sin duplicados.
+  const seen = new Set<string>();
+  const merged: {
+    name: string;
+    gif_url: string;
+    target: string;
+    equipment: string;
+  }[] = [];
+  for (const r of [...edb, ...free]) {
+    const key = r.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({
+      name: r.name,
+      gif_url: r.gifUrl,
+      target: r.target,
+      equipment: r.equipment,
+    });
   }
+
+  return NextResponse.json(merged.slice(0, 16));
 }
