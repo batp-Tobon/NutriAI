@@ -1,13 +1,29 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ChevronDown, Clock, Dumbbell, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  Circle,
+  Clock,
+  Dumbbell,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 import { completeWorkout, deleteWorkout } from "@/server/actions/workouts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { WORKOUT_TYPE_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Workout } from "@/core/domain/entities";
@@ -15,72 +31,120 @@ import type { Workout } from "@/core/domain/entities";
 export function WorkoutCard({ workout }: { workout: Workout }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, start] = useTransition();
   const [deleting, startDelete] = useTransition();
-  const completed = Boolean(workout.completed_at);
+  const [done, setDone] = useState<Set<string>>(new Set());
 
-  function complete() {
-    start(async () => {
-      await completeWorkout(workout.id);
-      toast.success("¡Entrenamiento completado!");
-      router.refresh();
-    });
+  const completed = Boolean(workout.completed_at);
+  const storageKey = `nutriai-wk-${workout.id}`;
+  const total = workout.plan.reduce((n, b) => n + b.exercises.length, 0);
+  const doneCount = done.size;
+  const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  // Cargar progreso guardado
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) setDone(new Set(JSON.parse(raw) as string[]));
+    } catch {
+      /* ignore */
+    }
+  }, [storageKey]);
+
+  function persist(next: Set<string>) {
+    setDone(next);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify([...next]));
+    } catch {
+      /* ignore */
+    }
   }
 
-  function onDelete() {
-    if (!window.confirm("¿Eliminar esta rutina?")) return;
+  function toggle(key: string) {
+    const next = new Set(done);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    persist(next);
+
+    if (next.size === total && total > 0 && !completed) {
+      start(async () => {
+        await completeWorkout(workout.id);
+        toast.success("¡Rutina completada al 100%! 🎉");
+        router.refresh();
+      });
+    }
+  }
+
+  function confirmDelete() {
     startDelete(async () => {
       await deleteWorkout(workout.id);
       toast.success("Rutina eliminada");
+      setConfirmOpen(false);
       router.refresh();
     });
   }
 
   return (
-    <Card className={cn(completed && "opacity-70")}>
+    <Card className={cn(completed && "border-primary/40")}>
       <CardContent className="pt-5">
         <div className="flex items-start gap-2">
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="flex flex-1 items-start justify-between gap-3 text-left"
-        >
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Dumbbell className="h-4 w-4 text-primary" />
-              <h3 className="truncate font-semibold">{workout.title}</h3>
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">
-                {WORKOUT_TYPE_LABELS[workout.workout_type]}
-              </Badge>
-              {workout.duration_min && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" /> {workout.duration_min} min
-                </span>
-              )}
-              {workout.difficulty && (
-                <span className="text-xs text-muted-foreground">
-                  {workout.difficulty}
-                </span>
-              )}
-            </div>
-          </div>
-          <ChevronDown
-            className={cn(
-              "h-5 w-5 shrink-0 text-muted-foreground transition-transform",
-              open && "rotate-180",
-            )}
-          />
-        </button>
           <button
-            onClick={onDelete}
-            disabled={deleting}
+            onClick={() => setOpen((o) => !o)}
+            className="flex flex-1 items-start justify-between gap-3 text-left"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Dumbbell className="h-4 w-4 text-primary" />
+                <h3 className="truncate font-semibold">{workout.title}</h3>
+                {completed && (
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                )}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">
+                  {WORKOUT_TYPE_LABELS[workout.workout_type]}
+                </Badge>
+                {workout.duration_min && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" /> {workout.duration_min} min
+                  </span>
+                )}
+                {workout.difficulty && (
+                  <span className="text-xs text-muted-foreground">
+                    {workout.difficulty}
+                  </span>
+                )}
+              </div>
+            </div>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 shrink-0 text-muted-foreground transition-transform",
+                open && "rotate-180",
+              )}
+            />
+          </button>
+          <button
+            onClick={() => setConfirmOpen(true)}
             aria-label="Eliminar rutina"
-            className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+            className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:text-destructive"
           >
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Barra de progreso (siempre visible) */}
+        {total > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Progreso</span>
+              <span className="font-semibold">
+                {doneCount}/{total} ejercicios
+              </span>
+            </div>
+            <Progress value={pct} className="mt-1 h-2" />
+          </div>
+        )}
 
         {open && (
           <div className="mt-4 space-y-4 animate-fade-in">
@@ -90,62 +154,110 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
                   {block.block}
                 </p>
                 <div className="space-y-2">
-                  {block.exercises.map((ex, j) => (
-                    <div
-                      key={j}
-                      className="flex items-center gap-3 rounded-xl bg-secondary/40 p-2"
-                    >
-                      {ex.gif_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/api/exercise-gif?u=${encodeURIComponent(ex.gif_url)}`}
-                          alt={ex.name}
-                          loading="lazy"
-                          className="h-16 w-16 shrink-0 rounded-lg bg-white object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
-                          <Dumbbell className="h-6 w-6" />
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold capitalize">
-                          {ex.name}
-                        </p>
-                        {ex.target && (
-                          <p className="truncate text-xs capitalize text-muted-foreground">
-                            🎯 {ex.target}
-                          </p>
+                  {block.exercises.map((ex, j) => {
+                    const key = `${i}-${j}`;
+                    const isDone = done.has(key);
+                    return (
+                      <button
+                        key={j}
+                        onClick={() => toggle(key)}
+                        className={cn(
+                          "flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors",
+                          isDone
+                            ? "bg-primary/15 ring-1 ring-primary/40"
+                            : "bg-secondary/40",
                         )}
-                        <p className="text-xs font-medium text-primary">
-                          {ex.sets} series × {ex.reps}
-                          {ex.rest_sec ? ` · ${ex.rest_sec}s desc.` : ""}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                      >
+                        {ex.gif_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={`/api/exercise-gif?u=${encodeURIComponent(ex.gif_url)}`}
+                            alt={ex.name}
+                            loading="lazy"
+                            className="h-16 w-16 shrink-0 rounded-lg bg-white object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
+                            <Dumbbell className="h-6 w-6" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={cn(
+                              "truncate text-sm font-semibold capitalize",
+                              isDone && "text-primary",
+                            )}
+                          >
+                            {ex.name}
+                          </p>
+                          {ex.target && (
+                            <p className="truncate text-xs capitalize text-muted-foreground">
+                              🎯 {ex.target}
+                            </p>
+                          )}
+                          <p className="text-xs font-medium text-primary">
+                            {ex.sets} series × {ex.reps}
+                            {ex.rest_sec ? ` · ${ex.rest_sec}s desc.` : ""}
+                          </p>
+                        </div>
+                        {isDone ? (
+                          <CheckCircle2 className="h-6 w-6 shrink-0 text-primary" />
+                        ) : (
+                          <Circle className="h-6 w-6 shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}
 
-            {!completed && (
-              <Button
-                variant="secondary"
-                className="w-full"
-                onClick={complete}
-                disabled={pending}
-              >
-                <Check className="h-4 w-4" /> Marcar como completada
-              </Button>
-            )}
-            {completed && (
-              <p className="text-center text-xs text-primary">
-                ✓ Completada
+            {pct === 100 ? (
+              <p className="rounded-xl bg-primary/15 py-2 text-center text-sm font-semibold text-primary">
+                {pending ? "Guardando…" : "¡Completada al 100%! 🎉"}
+              </p>
+            ) : (
+              <p className="text-center text-xs text-muted-foreground">
+                Toca cada ejercicio al terminarlo para llegar al 100%.
               </p>
             )}
           </div>
         )}
       </CardContent>
+
+      {/* Confirmación de borrado (con los colores de la app) */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <div className="mx-auto mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/15 text-destructive">
+              <Trash2 className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center">Eliminar rutina</DialogTitle>
+            <DialogDescription className="text-center">
+              ¿Seguro que quieres eliminar <b>{workout.title}</b>? Esta acción no
+              se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setConfirmOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Eliminar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
