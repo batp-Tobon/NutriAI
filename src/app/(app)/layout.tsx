@@ -34,7 +34,7 @@ export default async function AppLayout({
 
   return (
     <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background">
-      <AppHeader profile={profile} email={user.email} />
+      <AppHeader profile={profile} email={user.email} isAdmin={isAdmin} />
       <main className="flex-1 px-4 pb-28 pt-1">{children}</main>
       <InstallPrompt />
       <BottomNav />

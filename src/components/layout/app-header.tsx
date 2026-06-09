@@ -19,9 +19,11 @@ import type { Profile } from "@/core/domain/entities";
 export function AppHeader({
   profile,
   email,
+  isAdmin = false,
 }: {
   profile: Profile | null;
   email?: string;
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const name = profile?.full_name ?? email ?? "Usuario";
@@ -54,7 +56,7 @@ export function AppHeader({
               <User className="h-4 w-4" /> Perfil
             </Link>
           </DropdownMenuItem>
-          {profile?.role === "admin" && (
+          {(isAdmin || profile?.role === "admin") && (
             <DropdownMenuItem asChild>
               <Link href="/admin">
                 <Settings className="h-4 w-4" /> Panel admin

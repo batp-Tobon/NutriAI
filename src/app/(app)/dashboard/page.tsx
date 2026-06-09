@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, UtensilsCrossed } from "lucide-react";
+import { ShieldCheck, Sparkles, UtensilsCrossed } from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import {
   createMealRepository,
@@ -66,6 +66,27 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-4 animate-fade-in">
       <SupportBanner state={access.state} daysLeft={access.daysLeft} />
+
+      {isAdmin && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex items-center gap-3 pt-5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold leading-tight">
+                Panel de administración
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Activa y gestiona las suscripciones de tus usuarios.
+              </p>
+            </div>
+            <Button asChild size="sm">
+              <Link href="/admin">Abrir</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Nutrición diaria */}
       <Card className="bg-gradient-to-b from-card to-secondary/20">
