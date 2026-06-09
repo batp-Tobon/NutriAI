@@ -13,7 +13,11 @@ import { getUserAccess } from "@/server/access";
 import { env, isOpenAIConfigured } from "@/lib/env";
 import { WORKOUT_TYPE_LABELS } from "@/lib/constants";
 import { BASE_WEEK } from "@/lib/base-week";
-import type { WorkoutType } from "@/types/database";
+import type {
+  WorkoutBlock,
+  WorkoutExercise,
+  WorkoutType,
+} from "@/types/database";
 
 const schema = z.object({
   workoutType: z.enum(["home", "gym", "cardio", "hypertrophy", "mobility"]),
@@ -119,6 +123,7 @@ const manualSchema = z.object({
         rest_sec: z.coerce.number().int().min(0).max(900),
         gif_url: z.string().optional().nullable(),
         target: z.string().optional().nullable(),
+        block: z.string().optional().nullable(),
       }),
     )
     .min(1, "Agrega al menos un ejercicio"),
@@ -139,19 +144,25 @@ export async function saveManualWorkout(
   }
   const v = parsed.data;
 
-  const plan = [
-    {
-      block: "Principal",
-      exercises: v.exercises.map((e) => ({
-        name: e.name,
-        sets: e.sets,
-        reps: e.reps,
-        rest_sec: e.rest_sec,
-        ...(e.gif_url ? { gif_url: e.gif_url } : {}),
-        ...(e.target ? { target: e.target } : {}),
-      })),
-    },
-  ];
+  // Agrupa por bloque conservando el orden (preserva calentamiento/principal/…)
+  const plan: WorkoutBlock[] = [];
+  for (const e of v.exercises) {
+    const blockName = e.block?.trim() || "Principal";
+    let blk = plan.find((b) => b.block === blockName);
+    if (!blk) {
+      blk = { block: blockName, exercises: [] };
+      plan.push(blk);
+    }
+    const exercise: WorkoutExercise = {
+      name: e.name,
+      sets: e.sets,
+      reps: e.reps,
+      rest_sec: e.rest_sec,
+    };
+    if (e.gif_url) exercise.gif_url = e.gif_url;
+    if (e.target) exercise.target = e.target;
+    blk.exercises.push(exercise);
+  }
 
   const row = {
     title: v.title,

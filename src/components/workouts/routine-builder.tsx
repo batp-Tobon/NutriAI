@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Dumbbell, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { Dumbbell, Loader2, Plus, Replace, Search, Trash2, X } from "lucide-react";
 import { saveManualWorkout } from "@/server/actions/workouts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ type Ex = {
   rest_sec: string;
   gif_url?: string;
   target?: string;
+  block: string;
 };
 type SearchResult = {
   name: string;
@@ -60,29 +61,46 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
       : "intermedio",
   );
   const [exercises, setExercises] = useState<Ex[]>(() =>
-    (initial?.plan ?? [])
-      .flatMap((b) => b.exercises)
-      .map((e) => ({
+    (initial?.plan ?? []).flatMap((b) =>
+      b.exercises.map((e) => ({
         name: e.name,
         sets: String(e.sets),
         reps: e.reps,
         rest_sec: String(e.rest_sec),
         gif_url: e.gif_url,
         target: e.target,
+        block: b.block || "Principal",
       })),
+    ),
   );
 
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
+  // índice del ejercicio que se está reemplazando (null = añadir nuevo)
+  const [swapIndex, setSwapIndex] = useState<number | null>(null);
 
   function addBlank() {
     setExercises((x) => [
       ...x,
-      { name: "", sets: "4", reps: "10", rest_sec: "60" },
+      { name: "", sets: "4", reps: "10", rest_sec: "60", block: "Principal" },
     ]);
   }
   function addFromCatalog(r: SearchResult) {
+    if (swapIndex !== null) {
+      setExercises((x) =>
+        x.map((e, i) =>
+          i === swapIndex
+            ? { ...e, name: r.name, gif_url: r.gif_url, target: r.target }
+            : e,
+        ),
+      );
+      setSwapIndex(null);
+      setResults([]);
+      setQuery("");
+      toast.success("Ejercicio reemplazado");
+      return;
+    }
     setExercises((x) => [
       ...x,
       {
@@ -92,9 +110,17 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
         rest_sec: "60",
         gif_url: r.gif_url,
         target: r.target,
+        block: "Principal",
       },
     ]);
     toast.success("Ejercicio añadido");
+  }
+
+  function startSwap(i: number) {
+    setSwapIndex(i);
+    setResults([]);
+    setQuery("");
+    toast("Busca arriba el ejercicio para reemplazarlo");
   }
   function updateEx(i: number, key: keyof Ex, val: string) {
     setExercises((x) => x.map((e, idx) => (idx === i ? { ...e, [key]: val } : e)));
@@ -143,6 +169,7 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
           rest_sec: Number(e.rest_sec) || 0,
           gif_url: e.gif_url,
           target: e.target,
+          block: e.block,
         })),
       });
       if (!res.ok) {
@@ -231,6 +258,21 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
       <Card>
         <CardContent className="space-y-3 pt-5">
           <Label>Buscar ejercicio en el catálogo (con GIF)</Label>
+          {swapIndex !== null && (
+            <div className="flex items-center justify-between rounded-lg bg-primary/10 px-3 py-2 text-xs">
+              <span className="min-w-0 truncate">
+                Reemplazando:{" "}
+                <b>{exercises[swapIndex]?.name || "ejercicio"}</b>
+              </span>
+              <button
+                onClick={() => setSwapIndex(null)}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label="Cancelar reemplazo"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           <div className="flex gap-2">
             <Input
               value={query}
@@ -322,6 +364,17 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
                   placeholder="Nombre del ejercicio"
                   className="h-10 flex-1"
                 />
+                <button
+                  onClick={() => startSwap(i)}
+                  aria-label="Reemplazar ejercicio"
+                  className={
+                    swapIndex === i
+                      ? "shrink-0 p-2 text-primary"
+                      : "shrink-0 p-2 text-muted-foreground hover:text-primary"
+                  }
+                >
+                  <Replace className="h-4 w-4" />
+                </button>
                 <button
                   onClick={() => removeEx(i)}
                   aria-label="Quitar"
