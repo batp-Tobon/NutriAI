@@ -13,8 +13,8 @@ export const env = {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
-  // Suscripción / apoyo (Nequi)
-  nequiNumber: process.env.NEXT_PUBLIC_NEQUI_NUMBER ?? "",
+  // Suscripción / apoyo (Bre-B · Nequi / Bancolombia)
+  paymentKey: process.env.NEXT_PUBLIC_PAYMENT_KEY ?? "",
   monthlyPrice: process.env.NEXT_PUBLIC_MONTHLY_PRICE ?? "",
   supportWhatsapp: process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? "",
   cronSecret: process.env.CRON_SECRET ?? "",

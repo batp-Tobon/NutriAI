@@ -47,7 +47,7 @@ export default async function AdminPage() {
     .from("profiles")
     .select("id, email, full_name, role, created_at, trial_ends_at, subscribed_until")
     .order("created_at", { ascending: false })
-    .limit(15);
+    .limit(50);
 
   return (
     <div className="space-y-6">

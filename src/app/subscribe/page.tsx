@@ -6,6 +6,7 @@ import { getAccess } from "@/core/application/subscription";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SubscribeActions } from "@/components/subscription/subscribe-actions";
+import { PaymentQR } from "@/components/subscription/payment-qr";
 import { env } from "@/lib/env";
 
 export const metadata = { title: "Suscripción" };
@@ -63,16 +64,21 @@ export default async function SubscribePage() {
             </>
           )}
 
-          {/* Datos de pago Nequi */}
+          {/* Datos de pago Bre-B */}
           <div className="rounded-2xl bg-secondary/40 p-4 text-left">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-              Pago por Nequi
+            <p className="text-center text-xs font-semibold uppercase tracking-wide text-primary">
+              Pago por Bre-B (Nequi / Bancolombia)
             </p>
-            <div className="mt-2 space-y-1 text-sm">
+
+            <div className="my-3">
+              <PaymentQR />
+            </div>
+
+            <div className="space-y-1 text-sm">
               <p>
-                <span className="text-muted-foreground">Número Nequi:</span>{" "}
+                <span className="text-muted-foreground">Llave Bre-B:</span>{" "}
                 <span className="font-bold">
-                  {env.nequiNumber || "(configura tu número)"}
+                  {env.paymentKey || "(configura tu llave)"}
                 </span>
               </p>
               <p>
@@ -83,8 +89,16 @@ export default async function SubscribePage() {
               </p>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              Realiza el pago por Nequi al número indicado y luego envíanos el
-              comprobante para activar tu mes. La activación es manual (24 h máx).
+              Paga con tu app (Nequi, Bancolombia, etc.) a la llave indicada y
+              envíanos el comprobante para activar tu mes. La activación es
+              manual (24 h máx).
+              {env.adminEmails[0] && (
+                <>
+                  {" "}
+                  Contacto:{" "}
+                  <span className="text-foreground">{env.adminEmails[0]}</span>.
+                </>
+              )}
             </p>
           </div>
 

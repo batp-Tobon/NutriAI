@@ -56,12 +56,12 @@ export function SupportBanner({
             <span className="font-semibold text-foreground">
               {env.monthlyPrice || "una mensualidad"}
             </span>
-            {env.nequiNumber ? (
+            {env.paymentKey ? (
               <>
                 {" "}
-                · Nequi{" "}
+                · Bre-B{" "}
                 <span className="font-semibold text-foreground">
-                  {env.nequiNumber}
+                  {env.paymentKey}
                 </span>
               </>
             ) : null}
