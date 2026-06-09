@@ -48,6 +48,8 @@ export interface Database {
           plan: "general" | "ai";
           ai_uses: number;
           ai_period_start: string | null;
+          subscription_started_at: string | null;
+          renewal_notified_at: string | null;
           created_at: string;
           updated_at: string;
         };

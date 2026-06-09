@@ -598,3 +598,14 @@ $$;
 grant execute on function public.consume_ai_credit(int) to authenticated;
 
 
+-- >>> 20260608000007_subscription_dates.sql >>>
+-- ============================================================================
+-- NutriAI Â· 0007 Â· Fechas de suscripciÃ³n y control de avisos de vencimiento
+-- Ejecuta este archivo en el SQL Editor de Supabase (una vez).
+-- ============================================================================
+
+alter table public.profiles
+  add column if not exists subscription_started_at timestamptz,
+  add column if not exists renewal_notified_at     timestamptz;
+
+

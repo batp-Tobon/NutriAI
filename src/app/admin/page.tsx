@@ -81,6 +81,7 @@ export default async function AdminPage() {
                 <tr className="border-b border-border/60">
                   <th className="p-3">Usuario</th>
                   <th className="p-3">Estado</th>
+                  <th className="p-3">Vigencia</th>
                   <th className="p-3 text-right">Acción</th>
                 </tr>
               </thead>
@@ -98,6 +99,14 @@ export default async function AdminPage() {
                           state={access.state}
                           plan={access.plan}
                           daysLeft={access.daysLeft}
+                        />
+                      </td>
+                      <td className="p-3">
+                        <PeriodCell
+                          state={access.state}
+                          startsAt={u.subscription_started_at}
+                          endsAt={u.subscribed_until}
+                          trialEndsAt={u.trial_ends_at}
                         />
                       </td>
                       <td className="p-3">
@@ -119,7 +128,7 @@ export default async function AdminPage() {
                 {(!recent || recent.length === 0) && (
                   <tr>
                     <td
-                      colSpan={3}
+                      colSpan={4}
                       className="p-6 text-center text-muted-foreground"
                     >
                       Sin usuarios todavía.
@@ -154,6 +163,55 @@ function StatusBadge({
   if (state === "trial")
     return <Badge variant="secondary">Prueba · {daysLeft}d</Badge>;
   return <Badge variant="destructive">Vencido</Badge>;
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("es", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
+}
+
+function PeriodCell({
+  state,
+  startsAt,
+  endsAt,
+  trialEndsAt,
+}: {
+  state: "admin" | "trial" | "subscribed" | "expired";
+  startsAt: string | null;
+  endsAt: string | null;
+  trialEndsAt: string | null;
+}) {
+  if (state === "admin") {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  if (state === "trial") {
+    return (
+      <span className="text-xs text-muted-foreground">
+        Prueba hasta {fmtDate(trialEndsAt)}
+      </span>
+    );
+  }
+  if (state === "subscribed") {
+    return (
+      <div className="text-xs leading-tight text-muted-foreground">
+        <p>
+          Inicio: <span className="text-foreground">{fmtDate(startsAt)}</span>
+        </p>
+        <p>
+          Fin: <span className="text-foreground">{fmtDate(endsAt)}</span>
+        </p>
+      </div>
+    );
+  }
+  return (
+    <span className="text-xs text-muted-foreground">
+      {endsAt ? `Venció ${fmtDate(endsAt)}` : "—"}
+    </span>
+  );
 }
 
 function Stat({

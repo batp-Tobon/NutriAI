@@ -44,7 +44,12 @@ export async function activateMonth(
 
   const { error } = await db
     .from("profiles")
-    .update({ subscribed_until: current.toISOString(), plan })
+    .update({
+      subscribed_until: current.toISOString(),
+      subscription_started_at: new Date().toISOString(),
+      renewal_notified_at: null, // reinicia el aviso para el nuevo periodo
+      plan,
+    })
     .eq("id", userId);
 
   if (error) return { ok: false, error: error.message };
