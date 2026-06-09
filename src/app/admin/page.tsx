@@ -44,11 +44,11 @@ export default async function AdminPage() {
     .select("*", { count: "exact", head: true })
     .gte("created_at", since);
 
+  // select("*") es robusto: si aún no aplicaste las migraciones de planes,
+  // la lista sigue mostrando los usuarios (las columnas nuevas llegan vacías).
   const { data: recent } = await admin
     .from("profiles")
-    .select(
-      "id, email, full_name, role, created_at, trial_ends_at, subscribed_until, plan",
-    )
+    .select("*")
     .order("created_at", { ascending: false })
     .limit(50);
 
