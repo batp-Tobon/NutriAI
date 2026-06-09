@@ -4,6 +4,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { getAccess } from "@/core/application/subscription";
+import { env } from "@/lib/env";
 
 export default async function AppLayout({
   children,
@@ -26,7 +27,8 @@ export default async function AppLayout({
   }
 
   // Paywall: prueba de 5 días → luego mensualidad (admins exentos)
-  if (profile && !getAccess(profile).hasAccess) {
+  const isAdmin = env.adminEmails.includes((user.email ?? "").toLowerCase());
+  if (profile && !getAccess(profile, isAdmin).hasAccess) {
     redirect("/subscribe");
   }
 

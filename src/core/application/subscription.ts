@@ -18,12 +18,12 @@ type ProfileLike = Pick<
   "role" | "trial_ends_at" | "subscribed_until"
 > | null;
 
-export function getAccess(profile: ProfileLike): AccessInfo {
-  if (!profile) return { hasAccess: false, state: "expired", daysLeft: 0 };
-
-  if (profile.role === "admin") {
+export function getAccess(profile: ProfileLike, isAdmin = false): AccessInfo {
+  // Admin por rol o por email (ADMIN_EMAILS): siempre con acceso.
+  if (isAdmin || profile?.role === "admin") {
     return { hasAccess: true, state: "admin", daysLeft: 9999 };
   }
+  if (!profile) return { hasAccess: false, state: "expired", daysLeft: 0 };
 
   const now = Date.now();
   const days = (iso: string | null) =>

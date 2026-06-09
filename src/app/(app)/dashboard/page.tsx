@@ -14,6 +14,7 @@ import { MacroRing } from "@/components/dashboard/macro-ring";
 import { WeightSparkline } from "@/components/charts/weight-sparkline";
 import { SupportBanner } from "@/components/subscription/support-banner";
 import { getAccess } from "@/core/application/subscription";
+import { env } from "@/lib/env";
 import { todayISO } from "@/lib/utils";
 
 export const metadata = { title: "Dashboard" };
@@ -59,7 +60,8 @@ export default async function DashboardPage() {
     .filter((p) => p.weight_kg != null)
     .map((p) => ({ date: p.recorded_at, weight: Number(p.weight_kg) }));
 
-  const access = getAccess(profile);
+  const isAdmin = env.adminEmails.includes((user!.email ?? "").toLowerCase());
+  const access = getAccess(profile, isAdmin);
 
   return (
     <div className="space-y-4 animate-fade-in">

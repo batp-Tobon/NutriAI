@@ -22,7 +22,8 @@ export default async function SubscribePage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const access = getAccess(profile);
+  const isAdmin = env.adminEmails.includes((user.email ?? "").toLowerCase());
+  const access = getAccess(profile, isAdmin);
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-10">
