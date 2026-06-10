@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ActivateButton } from "@/components/admin/activate-button";
 import { DeleteUserButton } from "@/components/admin/delete-user-button";
+import { AdminUserDialog } from "@/components/admin/admin-user-dialog";
 
 export const metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -103,19 +104,30 @@ export default async function AdminPage() {
                     trialEndsAt={u.trial_ends_at}
                   />
 
-                  {access.state !== "admin" && (
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <ActivateButton
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {access.state !== "admin" && (
+                      <>
+                        <ActivateButton
+                          userId={u.id}
+                          plan="general"
+                          label="General"
+                        />
+                        <ActivateButton userId={u.id} plan="ai" label="IA" />
+                      </>
+                    )}
+                    <div className="ml-auto flex items-center gap-1">
+                      <AdminUserDialog
                         userId={u.id}
-                        plan="general"
-                        label="General"
+                        fullName={u.full_name}
+                        startsAt={u.subscription_started_at}
+                        endsAt={u.subscribed_until}
+                        email={u.email}
                       />
-                      <ActivateButton userId={u.id} plan="ai" label="IA" />
-                      <div className="ml-auto">
+                      {access.state !== "admin" && (
                         <DeleteUserButton userId={u.id} email={u.email} />
-                      </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
             );

@@ -26,7 +26,14 @@ export default async function AdminLayout({
   if (!isAdmin) redirect("/dashboard");
 
   return (
-    <div className="mx-auto min-h-dvh w-full max-w-3xl px-4 py-6">
+    <div
+      className="mx-auto min-h-dvh w-full max-w-3xl pb-10"
+      style={{
+        paddingTop: "calc(env(safe-area-inset-top) + 1.25rem)",
+        paddingLeft: "max(1rem, env(safe-area-inset-left))",
+        paddingRight: "max(1rem, env(safe-area-inset-right))",
+      }}
+    >
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-extrabold">
           Nutri<span className="text-primary">AI</span>{" "}
