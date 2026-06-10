@@ -8,7 +8,9 @@ export function Toaster(props: ToasterProps) {
   return (
     <Sonner
       theme="dark"
-      position="top-center"
+      position="bottom-center"
+      // Sobre la barra de navegación inferior y fuera de la isla dinámica/notch
+      offset="calc(env(safe-area-inset-bottom, 0px) + 86px)"
       toastOptions={{
         classNames: {
           toast:
