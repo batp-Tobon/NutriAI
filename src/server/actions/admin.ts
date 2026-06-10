@@ -60,22 +60,42 @@ export async function activateMonth(
 /** Edita (desde admin) el nombre y las fechas de suscripción de un usuario. */
 export async function updateUserByAdmin(
   userId: string,
-  input: { fullName?: string; startsAt?: string | null; endsAt?: string | null },
+  input: {
+    fullName?: string;
+    email?: string;
+    plan?: "general" | "ai";
+    startsAt?: string | null;
+    endsAt?: string | null;
+  },
 ): Promise<{ ok: boolean; error?: string }> {
   if (!(await assertAdmin())) return { ok: false, error: "No autorizado" };
 
+  const db = createAdminClient();
+
+  // El correo se cambia en Auth (fuente de verdad) y se copia a profiles.
+  if (input.email !== undefined && input.email.trim()) {
+    const { error: eErr } = await db.auth.admin.updateUserById(userId, {
+      email: input.email.trim(),
+      email_confirm: true,
+    });
+    if (eErr) return { ok: false, error: eErr.message };
+  }
+
   const patch: {
     full_name?: string | null;
+    email?: string | null;
+    plan?: "general" | "ai";
     subscription_started_at?: string | null;
     subscribed_until?: string | null;
   } = {};
   if (input.fullName !== undefined) patch.full_name = input.fullName.trim() || null;
+  if (input.email !== undefined) patch.email = input.email.trim() || null;
+  if (input.plan !== undefined) patch.plan = input.plan;
   if (input.startsAt !== undefined)
     patch.subscription_started_at = input.startsAt ? `${input.startsAt}T12:00:00` : null;
   if (input.endsAt !== undefined)
     patch.subscribed_until = input.endsAt ? `${input.endsAt}T23:59:59` : null;
 
-  const db = createAdminClient();
   const { error } = await db.from("profiles").update(patch).eq("id", userId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/admin");

@@ -119,9 +119,10 @@ export default async function AdminPage() {
                       <AdminUserDialog
                         userId={u.id}
                         fullName={u.full_name}
+                        email={u.email}
+                        plan={u.plan ?? "general"}
                         startsAt={u.subscription_started_at}
                         endsAt={u.subscribed_until}
-                        email={u.email}
                       />
                       {access.state !== "admin" && (
                         <DeleteUserButton userId={u.id} email={u.email} />

@@ -9,9 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -23,20 +29,24 @@ function dateVal(iso: string | null) {
 export function AdminUserDialog({
   userId,
   fullName,
+  email,
+  plan,
   startsAt,
   endsAt,
-  email,
 }: {
   userId: string;
   fullName: string | null;
+  email: string | null;
+  plan: "general" | "ai";
   startsAt: string | null;
   endsAt: string | null;
-  email: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [name, setName] = useState(fullName ?? "");
+  const [mail, setMail] = useState(email ?? "");
+  const [planValue, setPlanValue] = useState<"general" | "ai">(plan);
   const [startDate, setStartDate] = useState(dateVal(startsAt));
   const [endDate, setEndDate] = useState(dateVal(endsAt));
 
@@ -44,6 +54,8 @@ export function AdminUserDialog({
     start(async () => {
       const res = await updateUserByAdmin(userId, {
         fullName: name,
+        email: mail,
+        plan: planValue,
         startsAt: startDate || null,
         endsAt: endDate || null,
       });
@@ -90,35 +102,58 @@ export function AdminUserDialog({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar usuario</DialogTitle>
-            <DialogDescription>{email}</DialogDescription>
           </DialogHeader>
+
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Nombre</Label>
-              <Input value={name} onChange={(ev) => setName(ev.target.value)} />
-            </div>
+            <Field label="Nombre">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+
+            <Field label="Correo">
+              <Input
+                type="email"
+                value={mail}
+                onChange={(e) => setMail(e.target.value)}
+              />
+            </Field>
+
+            <Field label="Plan">
+              <Select
+                value={planValue}
+                onValueChange={(v) => setPlanValue(v as "general" | "ai")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">General</SelectItem>
+                  <SelectItem value="ai">IA</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Inicio plan</Label>
+              <Field label="Inicio plan">
                 <Input
                   type="date"
                   value={startDate}
-                  onChange={(ev) => setStartDate(ev.target.value)}
+                  onChange={(e) => setStartDate(e.target.value)}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Fin plan</Label>
+              </Field>
+              <Field label="Fin plan">
                 <Input
                   type="date"
                   value={endDate}
-                  onChange={(ev) => setEndDate(ev.target.value)}
+                  onChange={(e) => setEndDate(e.target.value)}
                 />
-              </div>
+              </Field>
             </div>
+
             <Button className="w-full" onClick={save} disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Guardar cambios
             </Button>
+
             <div className="border-t border-border/60 pt-3">
               <Button
                 variant="outline"
@@ -133,5 +168,20 @@ export function AdminUserDialog({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      {children}
+    </div>
   );
 }
