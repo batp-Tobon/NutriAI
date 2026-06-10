@@ -142,7 +142,7 @@ export function ActivityTracker({ dates }: { dates: string[] }) {
               value={date}
               max={todayStr}
               onChange={(e) => setDate(e.target.value)}
-              className="h-11 flex-1 rounded-xl border border-input bg-secondary/40 px-3 text-sm"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-input bg-secondary/40 px-3 text-base"
             />
             <Select value={type} onValueChange={(v) => setType(v as WorkoutType)}>
               <SelectTrigger className="w-32">

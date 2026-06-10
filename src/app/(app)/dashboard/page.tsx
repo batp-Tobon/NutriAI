@@ -19,7 +19,7 @@ import { SupportBanner } from "@/components/subscription/support-banner";
 import { getAccess } from "@/core/application/subscription";
 import { dailyInsights, waterGoalMl } from "@/core/application/insights";
 import { env } from "@/lib/env";
-import { todayISO } from "@/lib/utils";
+import { dayBoundsUTC, todayISO } from "@/lib/utils";
 
 export const metadata = { title: "Dashboard" };
 
@@ -37,14 +37,15 @@ export default async function DashboardPage() {
   const meals = await createMealRepository(supabase).listByDate(user!.id, today);
   const progress = await createProgressRepository(supabase).list(user!.id, 30);
 
-  // Entrenamientos completados hoy → calorías gastadas
+  // Entrenamientos completados hoy (día local) → calorías gastadas
+  const bounds = dayBoundsUTC(today);
   const { data: doneWorkouts } = await supabase
     .from("workouts")
     .select("workout_type, duration_min")
     .eq("user_id", user!.id)
     .not("completed_at", "is", null)
-    .gte("completed_at", `${today}T00:00:00`)
-    .lte("completed_at", `${today}T23:59:59`);
+    .gte("completed_at", bounds.from)
+    .lte("completed_at", bounds.to);
 
   const consumed = sumMacros(
     meals.map((m) => ({

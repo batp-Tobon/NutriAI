@@ -217,7 +217,7 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList>
             <TabsTrigger value="photo">
@@ -432,7 +432,7 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
                     type="number"
                     value={it.grams}
                     onChange={(e) => updateGrams(idx, Number(e.target.value))}
-                    className="h-9 w-16 rounded-lg border border-input bg-background px-2 text-right text-sm"
+                    className="h-9 w-16 rounded-lg border border-input bg-background px-2 text-right text-base"
                   />
                   <span className="text-xs text-muted-foreground">g</span>
                   <button

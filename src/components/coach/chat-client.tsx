@@ -116,7 +116,7 @@ export function ChatClient({ initial }: { initial: ChatMsg[] }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Pregúntale a NutriAI…"
-          className="h-11 flex-1 rounded-full border border-input bg-secondary/40 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-11 min-w-0 flex-1 rounded-full border border-input bg-secondary/40 px-4 text-base focus:outline-none focus:ring-2 focus:ring-ring"
         />
         <Button type="submit" size="icon" disabled={loading || !input.trim()}>
           {loading ? (

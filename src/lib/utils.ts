@@ -28,10 +28,37 @@ export function initials(name?: string | null): string {
     .join("");
 }
 
-/** Fecha ISO (YYYY-MM-DD) de hoy en local. */
+// ---------------------------------------------------------------------------
+// Fechas con zona horaria de la app.
+// El servidor (Vercel) corre en UTC; sin esto, el "día" cambiaría a las 7 pm
+// hora Colombia. Con estos helpers la jornada inicia a medianoche local.
+// ---------------------------------------------------------------------------
+const APP_TZ = process.env.NEXT_PUBLIC_APP_TZ ?? "America/Bogota";
+const APP_TZ_OFFSET = process.env.NEXT_PUBLIC_APP_TZ_OFFSET ?? "-05:00";
+
+/** Fecha ISO (YYYY-MM-DD) de hoy en la zona horaria de la app. */
 export function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}`;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: APP_TZ }).format(
+    new Date(),
+  );
+}
+
+/** Convierte un timestamp ISO a la fecha (YYYY-MM-DD) local de la app. */
+export function toAppDateISO(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: APP_TZ });
+}
+
+/** Límites UTC de un día local (para consultas a la BD). */
+export function dayBoundsUTC(dateISO: string): { from: string; to: string } {
+  return {
+    from: `${dateISO}T00:00:00${APP_TZ_OFFSET}`,
+    to: `${dateISO}T23:59:59${APP_TZ_OFFSET}`,
+  };
+}
+
+/** Suma o resta días a una fecha ISO (YYYY-MM-DD). */
+export function shiftDateISO(dateISO: string, days: number): string {
+  const d = new Date(`${dateISO}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }

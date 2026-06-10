@@ -326,7 +326,7 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
             type="date"
             value={schedDate}
             onChange={(e) => setSchedDate(e.target.value)}
-            className="h-11 w-full rounded-xl border border-input bg-secondary/40 px-3 text-sm"
+            className="h-11 w-full rounded-xl border border-input bg-secondary/40 px-3 text-base"
           />
           <div className="flex gap-2">
             {workout.scheduled_for && (

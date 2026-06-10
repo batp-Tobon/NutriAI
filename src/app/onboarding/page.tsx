@@ -16,7 +16,13 @@ export default async function OnboardingPage() {
     .maybeSingle();
 
   return (
-    <div className="mx-auto w-full max-w-md px-6 py-10">
+    <div
+      className="mx-auto w-full max-w-md px-6"
+      style={{
+        paddingTop: "calc(env(safe-area-inset-top) + 2.5rem)",
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 2.5rem)",
+      }}
+    >
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold">¡Bienvenido a NutriAI!</h1>
         <p className="mt-1 text-sm text-muted-foreground">

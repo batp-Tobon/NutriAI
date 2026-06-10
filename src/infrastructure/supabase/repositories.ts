@@ -16,6 +16,7 @@ import type {
 } from "@/core/domain/repositories";
 import type { MealItem } from "@/core/domain/entities";
 import { sumMacros } from "@/core/application/nutrition";
+import { dayBoundsUTC, toAppDateISO } from "@/lib/utils";
 
 /** Tipo exacto del cliente Supabase del servidor (tipado con Database). */
 type DB = Awaited<ReturnType<typeof createServerSupabase>>;
@@ -63,8 +64,7 @@ export function createFoodRepository(db: DB): FoodRepository {
 export function createMealRepository(db: DB): MealRepository {
   return {
     async listByDate(userId, dateISO) {
-      const from = `${dateISO}T00:00:00`;
-      const to = `${dateISO}T23:59:59`;
+      const { from, to } = dayBoundsUTC(dateISO);
       const { data, error } = await db
         .from("meals")
         .select("*, items:meal_items(*)")
@@ -229,7 +229,7 @@ export function createWorkoutRepository(db: DB): WorkoutRepository {
       return (data ?? [])
         .map((r) => r.completed_at)
         .filter((d): d is string => Boolean(d))
-        .map((d) => d.slice(0, 10));
+        .map((d) => toAppDateISO(d));
     },
   };
 }
