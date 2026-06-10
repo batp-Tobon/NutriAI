@@ -56,6 +56,29 @@ export async function addProgress(
   return { ok: true };
 }
 
+/** Registro rápido de horas de sueño de hoy. */
+export async function logSleep(
+  hours: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+
+  const supabase = await createClient();
+  try {
+    await createProgressRepository(supabase).upsert({
+      user_id: user.id,
+      sleep_hours: toNum(hours),
+      recorded_at: todayISO(),
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error" };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/progress");
+  return { ok: true };
+}
+
 export interface MeasurementInput {
   waist_cm: string;
   chest_cm: string;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
   Circle,
@@ -14,7 +15,11 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import { completeWorkout, deleteWorkout } from "@/server/actions/workouts";
+import {
+  completeWorkout,
+  deleteWorkout,
+  scheduleWorkout,
+} from "@/server/actions/workouts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,8 +39,11 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [schedDate, setSchedDate] = useState(workout.scheduled_for ?? "");
   const [pending, start] = useTransition();
   const [deleting, startDelete] = useTransition();
+  const [scheduling, startSchedule] = useTransition();
   const [done, setDone] = useState<Set<string>>(new Set());
 
   const completed = Boolean(workout.completed_at);
@@ -87,6 +95,22 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
     });
   }
 
+  function saveSchedule(clear = false) {
+    startSchedule(async () => {
+      const res = await scheduleWorkout(
+        workout.id,
+        clear ? null : schedDate || null,
+      );
+      if (!res.ok) {
+        toast.error(res.error ?? "Error");
+        return;
+      }
+      toast.success(clear ? "Fecha quitada" : "Rutina programada 📅");
+      setScheduleOpen(false);
+      router.refresh();
+    });
+  }
+
   return (
     <Card className={cn(completed && "border-primary/40")}>
       <CardContent className="pt-5">
@@ -117,6 +141,17 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
                     {workout.difficulty}
                   </span>
                 )}
+                {workout.scheduled_for && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-primary">
+                    <CalendarDays className="h-3 w-3" />
+                    {new Date(
+                      `${workout.scheduled_for}T00:00:00`,
+                    ).toLocaleDateString("es", {
+                      day: "2-digit",
+                      month: "short",
+                    })}
+                  </span>
+                )}
               </div>
             </div>
             <ChevronDown
@@ -125,6 +160,13 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
                 open && "rotate-180",
               )}
             />
+          </button>
+          <button
+            onClick={() => setScheduleOpen(true)}
+            aria-label="Programar rutina"
+            className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:text-primary"
+          >
+            <CalendarDays className="h-4 w-4" />
           </button>
           <Link
             href={`/plan/${workout.id}/edit`}
@@ -263,6 +305,47 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
             >
               {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
               Eliminar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Programar rutina en una fecha */}
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <div className="mx-auto mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <CalendarDays className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center">Programar rutina</DialogTitle>
+            <DialogDescription className="text-center">
+              Elige el día para hacer <b>{workout.title}</b>.
+            </DialogDescription>
+          </DialogHeader>
+          <input
+            type="date"
+            value={schedDate}
+            onChange={(e) => setSchedDate(e.target.value)}
+            className="h-11 w-full rounded-xl border border-input bg-secondary/40 px-3 text-sm"
+          />
+          <div className="flex gap-2">
+            {workout.scheduled_for && (
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => saveSchedule(true)}
+                disabled={scheduling}
+              >
+                Quitar
+              </Button>
+            )}
+            <Button
+              className="flex-1"
+              onClick={() => saveSchedule(false)}
+              disabled={scheduling || !schedDate}
+            >
+              {scheduling && <Loader2 className="h-4 w-4 animate-spin" />}
+              Programar
             </Button>
           </div>
         </DialogContent>

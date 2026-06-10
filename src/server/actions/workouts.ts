@@ -234,12 +234,17 @@ export async function deleteWorkout(id: string): Promise<{ ok: boolean }> {
   return { ok: true };
 }
 
-/** Registra una sesión de entrenamiento de hoy (sin rutina generada). */
+/** Registra una sesión de entrenamiento en la fecha indicada (por defecto hoy). */
 export async function logQuickSession(
   type: WorkoutType,
+  dateISO?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "No autenticado" };
+
+  const completedAt = dateISO
+    ? `${dateISO}T12:00:00`
+    : new Date().toISOString();
 
   const supabase = await createClient();
   try {
@@ -250,11 +255,31 @@ export async function logQuickSession(
       duration_min: 45,
       plan: [],
       ai_generated: false,
-      completed_at: new Date().toISOString(),
+      completed_at: completedAt,
     });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error" };
   }
+
+  revalidatePath("/plan");
+  return { ok: true };
+}
+
+/** Programa (o desprograma) una rutina para una fecha. */
+export async function scheduleWorkout(
+  id: string,
+  dateISO: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("workouts")
+    .update({ scheduled_for: dateISO })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) return { ok: false, error: error.message };
 
   revalidatePath("/plan");
   return { ok: true };

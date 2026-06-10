@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Flame, Moon, ShieldCheck, Sparkles, UtensilsCrossed } from "lucide-react";
+import { Flame, ShieldCheck, Sparkles, UtensilsCrossed } from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import {
   createMealRepository,
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { MacroRing } from "@/components/dashboard/macro-ring";
+import { SleepLogger } from "@/components/dashboard/sleep-logger";
 import { WeightSparkline } from "@/components/charts/weight-sparkline";
 import { SupportBanner } from "@/components/subscription/support-banner";
 import { getAccess } from "@/core/application/subscription";
@@ -151,13 +152,7 @@ export default async function DashboardPage() {
               <p className="text-[11px] text-muted-foreground">Neto (kcal)</p>
             </div>
           </div>
-          <div className="mt-3 flex items-center justify-center gap-1.5 border-t border-border/60 pt-3 text-xs text-muted-foreground">
-            <Moon className="h-3.5 w-3.5" />
-            Sueño anoche:{" "}
-            <span className="font-semibold text-foreground">
-              {sleepLast != null ? `${Number(sleepLast)} h` : "— (regístralo en Progreso)"}
-            </span>
-          </div>
+          <SleepLogger current={sleepLast != null ? Number(sleepLast) : null} />
         </CardContent>
       </Card>
 

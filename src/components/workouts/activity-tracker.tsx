@@ -41,6 +41,7 @@ export function ActivityTracker({ dates }: { dates: string[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [type, setType] = useState<WorkoutType>("gym");
+  const [date, setDate] = useState(iso(new Date()));
 
   const set = new Set(dates);
   const streak = computeStreak(set);
@@ -62,9 +63,9 @@ export function ActivityTracker({ dates }: { dates: string[] }) {
   ];
   const todayStr = iso(now);
 
-  function logToday() {
+  function logSession() {
     start(async () => {
-      const res = await logQuickSession(type);
+      const res = await logQuickSession(type, date);
       if (!res.ok) {
         toast.error(res.error ?? "Error");
         return;
@@ -112,45 +113,59 @@ export function ActivityTracker({ dates }: { dates: string[] }) {
               ).padStart(2, "0")}`;
               const trained = set.has(dateStr);
               const isToday = dateStr === todayStr;
+              const selected = dateStr === date;
               return (
-                <div
+                <button
                   key={i}
+                  onClick={() => setDate(dateStr)}
                   className={cn(
-                    "flex aspect-square items-center justify-center rounded-md text-xs",
+                    "flex aspect-square items-center justify-center rounded-md text-xs transition-colors",
                     trained
                       ? "bg-primary font-bold text-primary-foreground"
-                      : "bg-secondary/40 text-muted-foreground",
+                      : "bg-secondary/40 text-muted-foreground hover:bg-secondary",
                     isToday && !trained && "ring-1 ring-primary",
+                    selected && "ring-2 ring-primary",
                   )}
                 >
                   {day}
-                </div>
+                </button>
               );
             })}
           </div>
         </div>
 
-        {/* Registrar hoy */}
-        <div className="flex gap-2">
-          <Select value={type} onValueChange={(v) => setType(v as WorkoutType)}>
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(WORKOUT_TYPE_LABELS).map(([k, label]) => (
-                <SelectItem key={k} value={k}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button className="flex-1" onClick={logToday} disabled={pending}>
+        {/* Registrar sesión en una fecha (toca un día del calendario o elige) */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={date}
+              max={todayStr}
+              onChange={(e) => setDate(e.target.value)}
+              className="h-11 flex-1 rounded-xl border border-input bg-secondary/40 px-3 text-sm"
+            />
+            <Select value={type} onValueChange={(v) => setType(v as WorkoutType)}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(WORKOUT_TYPE_LABELS).map(([k, label]) => (
+                  <SelectItem key={k} value={k}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full" onClick={logSession} disabled={pending}>
             {pending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Flame className="h-4 w-4" />
             )}
-            Entrené hoy
+            {date === todayStr
+              ? "Entrené hoy"
+              : `Registrar ${date.split("-").reverse().join("/")}`}
           </Button>
         </div>
       </CardContent>
