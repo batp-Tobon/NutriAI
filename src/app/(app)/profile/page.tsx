@@ -1,5 +1,6 @@
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import { ProfileForm } from "@/components/profile/profile-form";
+import { GymReminder } from "@/components/profile/gym-reminder";
 import { NotificationsToggle } from "@/components/pwa/notifications-toggle";
 import { Card, CardContent } from "@/components/ui/card";
 import { GOAL_LABELS } from "@/lib/constants";
@@ -36,6 +37,15 @@ export default async function ProfilePage() {
           </span>
         </p>
       )}
+
+      <Card>
+        <CardContent className="space-y-3 pt-5">
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            Pago de tu gym 💳
+          </h2>
+          <GymReminder currentDay={profile?.gym_payment_day ?? null} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="space-y-3 pt-5">

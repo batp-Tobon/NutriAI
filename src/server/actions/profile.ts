@@ -83,3 +83,25 @@ export async function saveProfile(
   revalidatePath("/profile");
   return { ok: true };
 }
+
+/** Configura (o quita) el día del mes en que pagas tu gym. */
+export async function setGymPaymentDay(
+  day: number | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+  if (day !== null && (!Number.isInteger(day) || day < 1 || day > 31)) {
+    return { ok: false, error: "Día inválido" };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ gym_payment_day: day, gym_last_reminded_at: null })
+    .eq("id", user.id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/profile");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/infrastructure/supabase/admin";
 import { sendPushToUser } from "@/infrastructure/push/send";
 import { env, isSupabaseConfigured } from "@/lib/env";
+import { shiftDateISO, todayISO } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -91,6 +92,56 @@ async function notifyExpiring(admin: Admin): Promise<number> {
 }
 
 /**
+ * Recordatorio de pago del gym: avisa 2 días antes y el día del pago
+ * (una sola vez por ciclo mensual).
+ */
+async function notifyGymPayments(admin: Admin): Promise<number> {
+  const today = todayISO();
+  const [y, m] = today.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+
+  const { data: users } = await admin
+    .from("profiles")
+    .select("id, gym_payment_day, gym_last_reminded_at")
+    .not("gym_payment_day", "is", null);
+
+  let sent = 0;
+  for (const u of users ?? []) {
+    const day = Math.min(u.gym_payment_day as number, daysInMonth);
+    const due = `${today.slice(0, 8)}${String(day).padStart(2, "0")}`;
+    const windowStart = shiftDateISO(due, -2);
+
+    if (today < windowStart || today > due) continue;
+    if (u.gym_last_reminded_at && u.gym_last_reminded_at >= windowStart)
+      continue;
+
+    const body =
+      today === due
+        ? "¡Hoy vence la mensualidad de tu gym! No la dejes pasar."
+        : `La mensualidad de tu gym vence el día ${day}. ¡Que no se te olvide!`;
+
+    await admin.from("notifications").insert({
+      user_id: u.id,
+      type: "system",
+      title: "Pago del gym 💳",
+      body,
+    });
+    await sendPushToUser(admin, u.id, {
+      title: "Pago del gym 💳",
+      body,
+      url: "/dashboard",
+    }).catch(() => 0);
+
+    await admin
+      .from("profiles")
+      .update({ gym_last_reminded_at: today })
+      .eq("id", u.id);
+    sent++;
+  }
+  return sent;
+}
+
+/**
  * Mantenimiento diario (Vercel Cron):
  *  - Borra datos > 90 días (retención).
  *  - Avisa a 5 días del vencimiento de la suscripción.
@@ -118,15 +169,22 @@ export async function GET(request: Request) {
   }
 
   let notified = 0;
+  let gymReminders = 0;
   try {
     notified = await notifyExpiring(admin);
   } catch {
     /* no bloquear la limpieza por un fallo en los avisos */
   }
+  try {
+    gymReminders = await notifyGymPayments(admin);
+  } catch {
+    /* idem */
+  }
 
   return NextResponse.json({
     ok: true,
     notified,
+    gymReminders,
     ranAt: new Date().toISOString(),
   });
 }

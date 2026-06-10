@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { Flame, ShieldCheck, Sparkles, UtensilsCrossed } from "lucide-react";
+import {
+  CreditCard,
+  Flame,
+  ShieldCheck,
+  Sparkles,
+  UtensilsCrossed,
+} from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import {
   createMealRepository,
@@ -19,7 +25,7 @@ import { SupportBanner } from "@/components/subscription/support-banner";
 import { getAccess } from "@/core/application/subscription";
 import { dailyInsights, waterGoalMl } from "@/core/application/insights";
 import { env } from "@/lib/env";
-import { dayBoundsUTC, todayISO } from "@/lib/utils";
+import { dayBoundsUTC, shiftDateISO, todayISO } from "@/lib/utils";
 
 export const metadata = { title: "Inicio" };
 
@@ -102,9 +108,52 @@ export default async function DashboardPage() {
   const isAdmin = env.adminEmails.includes((user!.email ?? "").toLowerCase());
   const access = getAccess(profile, isAdmin);
 
+  // Recordatorio de pago del gym (visible 2 días antes y el día del pago)
+  let gymDue: { day: number; isToday: boolean } | null = null;
+  if (profile?.gym_payment_day) {
+    const [yy, mm] = today.split("-").map(Number);
+    const dim = new Date(yy, mm, 0).getDate();
+    const day = Math.min(profile.gym_payment_day, dim);
+    const due = `${today.slice(0, 8)}${String(day).padStart(2, "0")}`;
+    if (today >= shiftDateISO(due, -2) && today <= due) {
+      gymDue = { day, isToday: today === due };
+    }
+  }
+
   return (
     <div className="space-y-4 animate-fade-in">
       <SupportBanner state={access.state} daysLeft={access.daysLeft} />
+
+      {gymDue && (
+        <div
+          className={
+            gymDue.isToday
+              ? "flex items-center gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-3"
+              : "flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-3"
+          }
+        >
+          <div
+            className={
+              gymDue.isToday
+                ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive"
+                : "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
+            }
+          >
+            <CreditCard className="h-4 w-4" />
+          </div>
+          <p className="text-sm">
+            {gymDue.isToday ? (
+              <>
+                <b>¡Hoy vence la mensualidad de tu gym!</b> 💳
+              </>
+            ) : (
+              <>
+                Tu gym vence el <b>día {gymDue.day}</b>. ¡Que no se te pase! 💳
+              </>
+            )}
+          </p>
+        </div>
+      )}
 
       {isAdmin && (
         <Card className="border-primary/30 bg-primary/5">
