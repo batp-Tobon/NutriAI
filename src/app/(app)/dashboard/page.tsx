@@ -12,9 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { MacroRing } from "@/components/dashboard/macro-ring";
 import { SleepLogger } from "@/components/dashboard/sleep-logger";
+import { WaterCard } from "@/components/dashboard/water-card";
+import { InsightsCard } from "@/components/dashboard/insights-card";
 import { WeightSparkline } from "@/components/charts/weight-sparkline";
 import { SupportBanner } from "@/components/subscription/support-banner";
 import { getAccess } from "@/core/application/subscription";
+import { dailyInsights, waterGoalMl } from "@/core/application/insights";
 import { env } from "@/lib/env";
 import { todayISO } from "@/lib/utils";
 
@@ -58,7 +61,6 @@ export default async function DashboardPage() {
     0,
   );
   const net = Math.round(consumed.kcal - burned);
-  const sleepLast = progress.at(-1)?.sleep_hours ?? null;
 
   const target = {
     kcal: profile?.daily_calorie_target ?? 2000,
@@ -66,6 +68,26 @@ export default async function DashboardPage() {
     carbs: profile?.daily_carbs_target ?? 200,
     fat: profile?.daily_fat_target ?? 60,
   };
+
+  const todayProgress = progress.find((p) => p.recorded_at === today);
+  const sleepLast =
+    todayProgress?.sleep_hours ?? progress.at(-1)?.sleep_hours ?? null;
+  const waterMl = todayProgress?.water_ml ?? 0;
+  const wGoal = waterGoalMl(profile?.current_weight_kg ?? null);
+
+  const tips = dailyInsights({
+    goal: profile?.goal ?? null,
+    consumedKcal: consumed.kcal,
+    targetKcal: target.kcal,
+    burned,
+    proteinConsumed: consumed.protein,
+    proteinTarget: target.protein,
+    sleepHours: sleepLast != null ? Number(sleepLast) : null,
+    waterMl,
+    waterGoalMl: wGoal,
+    hour: new Date().getHours(),
+    mealsCount: meals.length,
+  });
 
   const weight =
     profile?.current_weight_kg ??
@@ -155,6 +177,12 @@ export default async function DashboardPage() {
           <SleepLogger current={sleepLast != null ? Number(sleepLast) : null} />
         </CardContent>
       </Card>
+
+      {/* Hidratación */}
+      <WaterCard current={waterMl} goal={wGoal} />
+
+      {/* Recomendaciones del día */}
+      <InsightsCard tips={tips} />
 
       {/* Peso actual */}
       <Card>

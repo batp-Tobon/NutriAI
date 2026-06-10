@@ -617,3 +617,14 @@ alter table public.progress
     check (sleep_hours is null or (sleep_hours >= 0 and sleep_hours <= 24));
 
 
+-- >>> 20260608000009_water.sql >>>
+-- ============================================================================
+-- NutriAI Â· 0009 Â· HidrataciÃ³n (agua) por dÃ­a, en la tabla progress
+-- Ejecuta este archivo en el SQL Editor de Supabase (una vez).
+-- ============================================================================
+
+alter table public.progress
+  add column if not exists water_ml int not null default 0
+    check (water_ml >= 0);
+
+

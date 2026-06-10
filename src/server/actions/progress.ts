@@ -79,6 +79,34 @@ export async function logSleep(
   return { ok: true };
 }
 
+/** Suma (o resta) agua al total de hoy. Devuelve el nuevo total en ml. */
+export async function addWater(
+  ml: number,
+): Promise<{ ok: boolean; total?: number }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+
+  const supabase = await createClient();
+  const today = todayISO();
+  const { data: existing } = await supabase
+    .from("progress")
+    .select("water_ml")
+    .eq("user_id", user.id)
+    .eq("recorded_at", today)
+    .maybeSingle();
+
+  const total = Math.max(0, (existing?.water_ml ?? 0) + ml);
+  await supabase
+    .from("progress")
+    .upsert(
+      { user_id: user.id, water_ml: total, recorded_at: today },
+      { onConflict: "user_id,recorded_at" },
+    );
+
+  revalidatePath("/dashboard");
+  return { ok: true, total };
+}
+
 export interface MeasurementInput {
   waist_cm: string;
   chest_cm: string;
