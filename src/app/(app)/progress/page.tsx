@@ -52,6 +52,34 @@ export default async function ProgressPage() {
     .eq("id", user!.id)
     .maybeSingle();
 
+  // Récords personales: mejor peso por ejercicio
+  const { data: setLogs } = await supabase
+    .from("workout_set_logs")
+    .select("exercise_name, weight_kg, reps, performed_at")
+    .eq("user_id", user!.id)
+    .gt("weight_kg", 0)
+    .order("performed_at", { ascending: false })
+    .limit(400);
+
+  const records = new Map<
+    string,
+    { weight: number; reps: number; date: string }
+  >();
+  for (const l of setLogs ?? []) {
+    const w = Number(l.weight_kg);
+    const cur = records.get(l.exercise_name);
+    if (!cur || w > cur.weight) {
+      records.set(l.exercise_name, {
+        weight: w,
+        reps: l.reps,
+        date: l.performed_at,
+      });
+    }
+  }
+  const prs = [...records.entries()]
+    .sort((a, b) => b[1].weight - a[1].weight)
+    .slice(0, 10);
+
   const chartData = progress.map((p) => ({
     date: p.recorded_at,
     weight: p.weight_kg != null ? Number(p.weight_kg) : null,
@@ -104,6 +132,53 @@ export default async function ProgressPage() {
             data={weekData}
             target={prof?.daily_calorie_target}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-5">
+          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
+            Récords personales 🏆
+          </h2>
+          {prs.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">
+              Anota tus pesos en el modo entrenamiento y aquí aparecerán tus
+              mejores marcas por ejercicio.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {prs.map(([name, r], i) => (
+                <div
+                  key={name}
+                  className="flex items-center gap-3 rounded-xl bg-secondary/40 px-3 py-2.5"
+                >
+                  <span className="w-5 shrink-0 text-center text-sm font-bold text-primary">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium capitalize">
+                      {name}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {new Date(r.date).toLocaleDateString("es", {
+                        day: "2-digit",
+                        month: "short",
+                      })}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-extrabold">
+                    {r.weight} kg
+                    {r.reps > 0 && (
+                      <span className="font-normal text-muted-foreground">
+                        {" "}
+                        × {r.reps}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { completeWorkout } from "@/server/actions/workouts";
+import { deleteSetLog, logSet } from "@/server/actions/sets";
 import { caloriesBurned } from "@/core/application/nutrition";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,12 +58,19 @@ function notifyRestEnd() {
   }
 }
 
+export interface ExerciseStats {
+  last: number | null;
+  max: number | null;
+}
+
 export function TrainClient({
   workout,
   weightKg,
+  stats,
 }: {
   workout: Workout;
   weightKg: number | null;
+  stats: Record<string, ExerciseStats>;
 }) {
   const router = useRouter();
   const storageKey = `nutriai-train-${workout.id}`;
@@ -73,12 +81,41 @@ export function TrainClient({
         b.exercises.map((ex, ei) => ({
           ...ex,
           key: `${bi}-${ei}`,
+          nameKey: ex.name.trim().toLowerCase(),
           blockName: b.block,
         })),
       ),
     [workout.plan],
   );
   const totalSets = exercises.reduce((s, e) => s + e.sets, 0);
+
+  // Pesos/reps por ejercicio (prefill: último peso usado y reps de la rutina)
+  const [weights, setWeights] = useState<Record<string, string>>(() => {
+    const w: Record<string, string> = {};
+    for (const e of exercises) {
+      const last = stats[e.nameKey]?.last;
+      w[e.key] = last != null ? String(last) : "";
+    }
+    return w;
+  });
+  const [repsMap, setRepsMap] = useState<Record<string, string>>(() => {
+    const r: Record<string, string> = {};
+    for (const e of exercises) {
+      const m = /\d+/.exec(e.reps);
+      r[e.key] = m ? m[0] : "";
+    }
+    return r;
+  });
+  const [logIds, setLogIds] = useState<Record<string, string>>({});
+  // Mejor marca conocida por ejercicio (se actualiza al romper récord)
+  const [bestMax, setBestMax] = useState<Record<string, number>>(() => {
+    const b: Record<string, number> = {};
+    for (const e of exercises) {
+      const mx = stats[e.nameKey]?.max;
+      if (mx != null && mx > 0) b[e.nameKey] = mx;
+    }
+    return b;
+  });
 
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [done, setDone] = useState<Record<string, number>>({});
@@ -103,9 +140,15 @@ export function TrainClient({
         const p = JSON.parse(raw) as {
           startedAt?: number;
           done?: Record<string, number>;
+          weights?: Record<string, string>;
+          reps?: Record<string, string>;
+          logIds?: Record<string, string>;
         };
         setStartedAt(p.startedAt ?? Date.now());
         setDone(p.done ?? {});
+        if (p.weights) setWeights((w) => ({ ...w, ...p.weights }));
+        if (p.reps) setRepsMap((r) => ({ ...r, ...p.reps }));
+        if (p.logIds) setLogIds(p.logIds);
         return;
       }
     } catch {
@@ -184,29 +227,106 @@ export function TrainClient({
   );
   const allDone = totalSets > 0 && doneTotal >= totalSets;
 
-  function persist(next: Record<string, number>) {
-    setDone(next);
+  function persistAll(over: {
+    done?: Record<string, number>;
+    weights?: Record<string, string>;
+    reps?: Record<string, string>;
+    logIds?: Record<string, string>;
+  }) {
     try {
       localStorage.setItem(
         storageKey,
-        JSON.stringify({ startedAt, done: next }),
+        JSON.stringify({
+          startedAt,
+          done: over.done ?? done,
+          weights: over.weights ?? weights,
+          reps: over.reps ?? repsMap,
+          logIds: over.logIds ?? logIds,
+        }),
       );
     } catch {
       /* ignore */
     }
   }
 
+  function persist(next: Record<string, number>) {
+    setDone(next);
+    persistAll({ done: next });
+  }
+
+  function setWeight(exKey: string, v: string) {
+    setWeights((w) => {
+      const n = { ...w, [exKey]: v };
+      persistAll({ weights: n });
+      return n;
+    });
+  }
+  function setReps(exKey: string, v: string) {
+    setRepsMap((r) => {
+      const n = { ...r, [exKey]: v };
+      persistAll({ reps: n });
+      return n;
+    });
+  }
+
   function tapSet(
     exKey: string,
     idx: number,
     ex: { sets: number; rest_sec: number; name: string },
+    nameKey: string,
   ) {
     const cur = done[exKey] ?? 0;
     const next = idx < cur ? idx : idx + 1;
     persist({ ...done, [exKey]: next });
-    // Solo inicia descanso al COMPLETAR una serie (no al deshacer)
-    if (next > cur && ex.rest_sec > 0 && !(next >= ex.sets && allDoneAfter(exKey, next))) {
-      setRest({ left: ex.rest_sec, total: ex.rest_sec, name: ex.name });
+
+    if (next > cur) {
+      // Serie completada → registrar peso/reps y detectar récord
+      const w = parseFloat((weights[exKey] ?? "").replace(",", ".")) || 0;
+      const r = parseInt(repsMap[exKey] ?? "", 10) || 0;
+      void logSet({
+        workoutId: workout.id,
+        exerciseName: ex.name,
+        setNumber: next,
+        weightKg: w,
+        reps: r,
+      }).then((res) => {
+        if (!res.ok || !res.id) return;
+        setLogIds((prev) => {
+          const n = { ...prev, [`${exKey}-${next - 1}`]: res.id! };
+          persistAll({ logIds: n });
+          return n;
+        });
+        if (res.isPR) {
+          toast.success(`🏆 ¡Nuevo récord! ${ex.name}: ${w} kg`, {
+            duration: 4000,
+          });
+          try {
+            navigator.vibrate?.([100, 60, 100, 60, 200]);
+          } catch {
+            /* ignore */
+          }
+          setBestMax((b) => ({ ...b, [nameKey]: w }));
+        }
+      });
+
+      // Descanso (no en la última serie del entrenamiento)
+      if (ex.rest_sec > 0 && !(next >= ex.sets && allDoneAfter(exKey, next))) {
+        setRest({ left: ex.rest_sec, total: ex.rest_sec, name: ex.name });
+      }
+    } else {
+      // Deshacer: borrar los registros de las series desmarcadas
+      setLogIds((prev) => {
+        const n = { ...prev };
+        for (let s = next; s < cur; s++) {
+          const id = n[`${exKey}-${s}`];
+          if (id) {
+            void deleteSetLog(id);
+            delete n[`${exKey}-${s}`];
+          }
+        }
+        persistAll({ logIds: n });
+        return n;
+      });
     }
   }
 
@@ -312,8 +432,10 @@ export function TrainClient({
           <div className="space-y-2">
             {block.exercises.map((ex, ei) => {
               const key = `${bi}-${ei}`;
+              const nameKey = ex.name.trim().toLowerCase();
               const cur = done[key] ?? 0;
               const complete = cur >= ex.sets;
+              const best = bestMax[nameKey];
               return (
                 <Card
                   key={ei}
@@ -353,12 +475,39 @@ export function TrainClient({
                       )}
                     </div>
 
+                    {/* Peso y reps de la serie */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={weights[key] ?? ""}
+                        onChange={(e) => setWeight(key, e.target.value)}
+                        placeholder="0"
+                        className="h-10 w-20 rounded-lg border border-input bg-background px-2 text-center text-base font-semibold"
+                      />
+                      <span className="text-xs text-muted-foreground">kg ×</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={repsMap[key] ?? ""}
+                        onChange={(e) => setReps(key, e.target.value)}
+                        placeholder="0"
+                        className="h-10 w-16 rounded-lg border border-input bg-background px-2 text-center text-base font-semibold"
+                      />
+                      <span className="text-xs text-muted-foreground">reps</span>
+                      {best != null && best > 0 && (
+                        <span className="ml-auto rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary">
+                          🏆 {best} kg
+                        </span>
+                      )}
+                    </div>
+
                     {/* Burbujas de series */}
                     <div className="flex flex-wrap gap-2">
                       {Array.from({ length: ex.sets }, (_, i) => (
                         <button
                           key={i}
-                          onClick={() => tapSet(key, i, ex)}
+                          onClick={() => tapSet(key, i, ex, nameKey)}
                           className={cn(
                             "flex h-10 w-10 items-center justify-center rounded-full border text-sm font-bold transition-all",
                             i < cur

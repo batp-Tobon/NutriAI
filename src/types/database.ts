@@ -254,6 +254,28 @@ export interface Database {
         >;
         Relationships: [];
       };
+      workout_set_logs: {
+        Row: {
+          id: string;
+          user_id: string;
+          workout_id: string | null;
+          exercise_name: string;
+          set_number: number;
+          weight_kg: number;
+          reps: number;
+          performed_at: string;
+        };
+        Insert: Partial<
+          Database["public"]["Tables"]["workout_set_logs"]["Row"]
+        > & {
+          user_id: string;
+          exercise_name: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["workout_set_logs"]["Row"]
+        >;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
