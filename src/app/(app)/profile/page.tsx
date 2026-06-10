@@ -1,5 +1,6 @@
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import { ProfileForm } from "@/components/profile/profile-form";
+import { NotificationsToggle } from "@/components/pwa/notifications-toggle";
 import { Card, CardContent } from "@/components/ui/card";
 import { GOAL_LABELS } from "@/lib/constants";
 
@@ -35,6 +36,18 @@ export default async function ProfilePage() {
           </span>
         </p>
       )}
+
+      <Card>
+        <CardContent className="space-y-3 pt-5">
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            Notificaciones
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Recibe recordatorios (agua, entrenar, vencimiento) en tu celular.
+          </p>
+          <NotificationsToggle />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="pt-5">

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/infrastructure/supabase/admin";
+import { sendPushToUser } from "@/infrastructure/push/send";
 import { env, isSupabaseConfigured } from "@/lib/env";
 
 export const runtime = "nodejs";
@@ -55,14 +56,21 @@ async function notifyExpiring(admin: Admin): Promise<number> {
       ),
     );
 
+    const userBody = `Te quedan ${days} día(s). Renueva con Bre-B ${
+      env.paymentKey || ""
+    } para no perder el acceso.`;
     await admin.from("notifications").insert({
       user_id: u.id,
       type: "system",
       title: "Tu plan vence pronto",
-      body: `Te quedan ${days} día(s). Renueva con Bre-B ${
-        env.paymentKey || ""
-      } para no perder el acceso.`,
+      body: userBody,
     });
+    // Push al celular (si tiene notificaciones activadas)
+    await sendPushToUser(admin, u.id, {
+      title: "Tu plan vence pronto",
+      body: userBody,
+      url: "/subscribe",
+    }).catch(() => 0);
 
     for (const aid of adminIds) {
       await admin.from("notifications").insert({

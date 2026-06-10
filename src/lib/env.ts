@@ -21,7 +21,14 @@ export const env = {
   cronSecret: process.env.CRON_SECRET ?? "",
   // Límite mensual de usos de IA por usuario (control de costos)
   aiMonthlyLimit: Number(process.env.AI_MONTHLY_LIMIT ?? "200"),
+  // Notificaciones push (Web Push / VAPID)
+  vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "",
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? "",
+  vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:admin@nutriai.app",
 };
+
+export const isPushConfigured = () =>
+  Boolean(env.vapidPublicKey && env.vapidPrivateKey);
 
 export const isSupabaseConfigured = () =>
   Boolean(env.supabaseUrl && env.supabaseAnonKey);
