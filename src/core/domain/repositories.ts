@@ -55,6 +55,10 @@ export interface WorkoutRepository {
   remove(id: string, userId: string): Promise<void>;
   /** Fechas (YYYY-MM-DD) de sesiones completadas desde `sinceISO`. */
   completedDates(userId: string, sinceISO: string): Promise<string[]>;
+  /** Entrenamientos completados en un día local concreto. */
+  completedOn(userId: string, dateISO: string): Promise<Workout[]>;
+  /** Rutinas programadas para una fecha. */
+  scheduledOn(userId: string, dateISO: string): Promise<Workout[]>;
 }
 
 export interface NotificationRepository {

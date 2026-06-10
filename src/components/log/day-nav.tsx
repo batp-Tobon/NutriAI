@@ -13,7 +13,15 @@ function label(date: string, today: string): string {
 }
 
 /** Navegador de días para revisar el historial (← fecha →). */
-export function DayNav({ date, today }: { date: string; today: string }) {
+export function DayNav({
+  date,
+  today,
+  basePath = "/log",
+}: {
+  date: string;
+  today: string;
+  basePath?: string;
+}) {
   const prev = shiftDateISO(date, -1);
   const next = shiftDateISO(date, 1);
   const hasNext = date < today;
@@ -21,7 +29,7 @@ export function DayNav({ date, today }: { date: string; today: string }) {
   return (
     <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-card p-1">
       <Link
-        href={`/log?date=${prev}`}
+        href={`${basePath}?date=${prev}`}
         aria-label="Día anterior"
         className="rounded-xl p-2.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
       >
@@ -32,7 +40,7 @@ export function DayNav({ date, today }: { date: string; today: string }) {
       </span>
       {hasNext ? (
         <Link
-          href={`/log?date=${next}`}
+          href={`${basePath}?date=${next}`}
           aria-label="Día siguiente"
           className="rounded-xl p-2.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >

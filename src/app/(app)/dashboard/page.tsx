@@ -21,7 +21,7 @@ import { dailyInsights, waterGoalMl } from "@/core/application/insights";
 import { env } from "@/lib/env";
 import { dayBoundsUTC, todayISO } from "@/lib/utils";
 
-export const metadata = { title: "Dashboard" };
+export const metadata = { title: "Inicio" };
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();

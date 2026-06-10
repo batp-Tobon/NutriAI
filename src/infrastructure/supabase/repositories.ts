@@ -218,6 +218,29 @@ export function createWorkoutRepository(db: DB): WorkoutRepository {
         .eq("user_id", userId);
       if (error) throw new Error(error.message);
     },
+    async completedOn(userId, dateISO) {
+      const { from, to } = dayBoundsUTC(dateISO);
+      const { data, error } = await db
+        .from("workouts")
+        .select("*")
+        .eq("user_id", userId)
+        .not("completed_at", "is", null)
+        .gte("completed_at", from)
+        .lte("completed_at", to)
+        .order("completed_at", { ascending: true });
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+    async scheduledOn(userId, dateISO) {
+      const { data, error } = await db
+        .from("workouts")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("scheduled_for", dateISO)
+        .order("created_at", { ascending: true });
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
     async completedDates(userId, sinceISO) {
       const { data, error } = await db
         .from("workouts")

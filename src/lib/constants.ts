@@ -8,10 +8,10 @@ import type {
 export const APP_NAME = "NutriAI";
 
 export const NAV_ITEMS = [
-  { href: "/dashboard", label: "Home", icon: "Home" },
-  { href: "/log", label: "Log", icon: "PlusCircle" },
-  { href: "/plan", label: "Plan", icon: "Dumbbell" },
-  { href: "/progress", label: "Progress", icon: "LineChart" },
+  { href: "/dashboard", label: "Inicio", icon: "Home" },
+  { href: "/log", label: "Comidas", icon: "UtensilsCrossed" },
+  { href: "/plan", label: "Entreno", icon: "Dumbbell" },
+  { href: "/progress", label: "Progreso", icon: "LineChart" },
   { href: "/coach", label: "Coach", icon: "MessageCircle" },
 ] as const;
 

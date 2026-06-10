@@ -36,7 +36,7 @@ export function AppHeader({
   }
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between bg-background/95 px-4 pt-safe pb-2 backdrop-blur">
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/40 bg-background/95 px-4 pt-safe pb-2 backdrop-blur">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button aria-label="Perfil" className="outline-none">
