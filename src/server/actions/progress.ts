@@ -21,6 +21,7 @@ export interface ProgressInput {
   weight_kg: string;
   body_fat_pct: string;
   muscle_mass_kg: string;
+  sleep_hours: string;
 }
 
 export async function addProgress(
@@ -37,6 +38,7 @@ export async function addProgress(
       weight_kg: weight,
       body_fat_pct: toNum(input.body_fat_pct),
       muscle_mass_kg: toNum(input.muscle_mass_kg),
+      sleep_hours: toNum(input.sleep_hours),
       recorded_at: todayISO(),
     });
     if (weight != null) {

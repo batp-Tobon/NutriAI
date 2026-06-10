@@ -128,6 +128,7 @@ export interface Database {
           weight_kg: number | null;
           body_fat_pct: number | null;
           muscle_mass_kg: number | null;
+          sleep_hours: number | null;
           photo_url: string | null;
           recorded_at: string;
           created_at: string;

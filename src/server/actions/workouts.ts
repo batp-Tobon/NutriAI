@@ -247,6 +247,7 @@ export async function logQuickSession(
       user_id: user.id,
       title: `Sesión de ${WORKOUT_TYPE_LABELS[type]}`,
       workout_type: type,
+      duration_min: 45,
       plan: [],
       ai_generated: false,
       completed_at: new Date().toISOString(),

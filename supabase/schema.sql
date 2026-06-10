@@ -1,7 +1,4 @@
-﻿-- ============================================================================
--- NutriAI - Esquema completo (todas las migraciones en un solo archivo)
--- Pega TODO esto en el SQL Editor de Supabase y pulsa RUN.
--- ============================================================================
+﻿-- NutriAI - Esquema completo (pega todo en el SQL Editor y RUN).
 
 -- >>> 20260608000001_init_schema.sql >>>
 -- ============================================================================
@@ -607,5 +604,16 @@ grant execute on function public.consume_ai_credit(int) to authenticated;
 alter table public.profiles
   add column if not exists subscription_started_at timestamptz,
   add column if not exists renewal_notified_at     timestamptz;
+
+
+-- >>> 20260608000008_sleep.sql >>>
+-- ============================================================================
+-- NutriAI Â· 0008 Â· Registro de horas de sueÃ±o (en la tabla progress, por dÃ­a)
+-- Ejecuta este archivo en el SQL Editor de Supabase (una vez).
+-- ============================================================================
+
+alter table public.progress
+  add column if not exists sleep_hours numeric(3, 1)
+    check (sleep_hours is null or (sleep_hours >= 0 and sleep_hours <= 24));
 
 

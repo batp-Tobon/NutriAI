@@ -3,9 +3,30 @@
  * Mifflin-St Jeor → TDEE → objetivo calórico → reparto de macros.
  */
 import { ACTIVITY_FACTOR } from "@/lib/constants";
-import type { ActivityLevel, Goal, Sex } from "@/types/database";
+import type { ActivityLevel, Goal, Sex, WorkoutType } from "@/types/database";
 import type { Macros } from "@/core/domain/entities";
 import { round } from "@/lib/utils";
+
+/** MET aproximado por tipo de entrenamiento (para estimar calorías gastadas). */
+const WORKOUT_MET: Record<WorkoutType, number> = {
+  gym: 5,
+  hypertrophy: 5,
+  home: 5,
+  cardio: 8,
+  mobility: 3,
+};
+
+/** Calorías gastadas ≈ MET × peso(kg) × duración(horas). */
+export function caloriesBurned(
+  type: WorkoutType,
+  durationMin: number | null,
+  weightKg: number | null,
+): number {
+  if (!durationMin || durationMin <= 0) return 0;
+  const met = WORKOUT_MET[type] ?? 5;
+  const w = weightKg && weightKg > 0 ? weightKg : 70;
+  return Math.round(met * w * (durationMin / 60));
+}
 
 export interface NutritionInput {
   sex: Sex;

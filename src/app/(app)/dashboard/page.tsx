@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { ShieldCheck, Sparkles, UtensilsCrossed } from "lucide-react";
+import { Flame, Moon, ShieldCheck, Sparkles, UtensilsCrossed } from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import {
   createMealRepository,
   createProgressRepository,
 } from "@/infrastructure/supabase/repositories";
-import { sumMacros } from "@/core/application/nutrition";
+import { caloriesBurned, sumMacros } from "@/core/application/nutrition";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,11 +29,18 @@ export default async function DashboardPage() {
     .eq("id", user!.id)
     .single();
 
-  const meals = await createMealRepository(supabase).listByDate(
-    user!.id,
-    todayISO(),
-  );
+  const today = todayISO();
+  const meals = await createMealRepository(supabase).listByDate(user!.id, today);
   const progress = await createProgressRepository(supabase).list(user!.id, 30);
+
+  // Entrenamientos completados hoy → calorías gastadas
+  const { data: doneWorkouts } = await supabase
+    .from("workouts")
+    .select("workout_type, duration_min")
+    .eq("user_id", user!.id)
+    .not("completed_at", "is", null)
+    .gte("completed_at", `${today}T00:00:00`)
+    .lte("completed_at", `${today}T23:59:59`);
 
   const consumed = sumMacros(
     meals.map((m) => ({
@@ -43,6 +50,14 @@ export default async function DashboardPage() {
       fat: m.total_fat,
     })),
   );
+
+  const burned = (doneWorkouts ?? []).reduce(
+    (s, w) =>
+      s + caloriesBurned(w.workout_type, w.duration_min, profile?.current_weight_kg ?? null),
+    0,
+  );
+  const net = Math.round(consumed.kcal - burned);
+  const sleepLast = progress.at(-1)?.sleep_hours ?? null;
 
   const target = {
     kcal: profile?.daily_calorie_target ?? 2000,
@@ -107,6 +122,41 @@ export default async function DashboardPage() {
               target={target.carbs}
             />
             <MacroStat label="Grasa" consumed={consumed.fat} target={target.fat} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Balance del día */}
+      <Card>
+        <CardContent className="pt-5">
+          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
+            Balance de hoy
+          </h2>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="flex items-center justify-center gap-1 text-xl font-extrabold">
+                <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
+                {Math.round(consumed.kcal)}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Consumido</p>
+            </div>
+            <div>
+              <p className="flex items-center justify-center gap-1 text-xl font-extrabold text-primary">
+                <Flame className="h-4 w-4" />-{burned}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Ejercicio</p>
+            </div>
+            <div>
+              <p className="text-xl font-extrabold">{net}</p>
+              <p className="text-[11px] text-muted-foreground">Neto (kcal)</p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-1.5 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+            <Moon className="h-3.5 w-3.5" />
+            Sueño anoche:{" "}
+            <span className="font-semibold text-foreground">
+              {sleepLast != null ? `${Number(sleepLast)} h` : "— (regístralo en Progreso)"}
+            </span>
           </div>
         </CardContent>
       </Card>

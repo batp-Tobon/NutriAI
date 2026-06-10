@@ -43,6 +43,10 @@ export default async function ProgressPage() {
               label="Grasa corporal"
               value={last?.body_fat_pct != null ? `${Number(last.body_fat_pct)} %` : "—"}
             />
+            <Stat
+              label="Sueño"
+              value={last?.sleep_hours != null ? `${Number(last.sleep_hours)} h` : "—"}
+            />
           </div>
           <CompositionChart data={chartData} />
         </CardContent>

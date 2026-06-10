@@ -22,7 +22,12 @@ export function ProgressDialog() {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
 
-  const [weight, setWeight] = useState({ weight_kg: "", body_fat_pct: "", muscle_mass_kg: "" });
+  const [weight, setWeight] = useState({
+    weight_kg: "",
+    body_fat_pct: "",
+    muscle_mass_kg: "",
+    sleep_hours: "",
+  });
   const [meas, setMeas] = useState({ waist_cm: "", chest_cm: "", arm_cm: "", leg_cm: "", hip_cm: "" });
 
   function saveWeight() {
@@ -79,6 +84,8 @@ export function ProgressDialog() {
               onChange={(v) => setWeight((s) => ({ ...s, body_fat_pct: v }))} />
             <NumField label="Masa muscular (kg)" value={weight.muscle_mass_kg}
               onChange={(v) => setWeight((s) => ({ ...s, muscle_mass_kg: v }))} />
+            <NumField label="Horas de sueño (anoche)" value={weight.sleep_hours}
+              onChange={(v) => setWeight((s) => ({ ...s, sleep_hours: v }))} />
             <Button className="w-full" onClick={saveWeight} disabled={pending}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />} Guardar
             </Button>
