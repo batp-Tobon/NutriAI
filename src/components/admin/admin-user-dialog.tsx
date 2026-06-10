@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarPlus, Loader2, Pencil, RotateCcw } from "lucide-react";
+import { CalendarDays, Loader2, Pencil, RotateCcw } from "lucide-react";
 import { resetUserData, updateUserByAdmin } from "@/server/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,17 @@ import {
 
 function dateVal(iso: string | null) {
   return iso ? iso.slice(0, 10) : "";
+}
+function fmtDate(value: string) {
+  if (!value) return "";
+  return new Date(`${value}T12:00:00`).toLocaleDateString("es", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+function toISO(d: Date) {
+  return d.toISOString().slice(0, 10);
 }
 
 export function AdminUserDialog({
@@ -60,11 +71,12 @@ export function AdminUserDialog({
       )
     : 0;
 
-  function addMonth() {
-    const base = startDate ? new Date(`${startDate}T12:00:00`) : new Date();
-    base.setDate(base.getDate() + 30);
-    if (!startDate) setStartDate(new Date().toISOString().slice(0, 10));
-    setEndDate(base.toISOString().slice(0, 10));
+  function setDuration(months: number) {
+    const begin = startDate ? new Date(`${startDate}T12:00:00`) : new Date();
+    if (!startDate) setStartDate(toISO(new Date()));
+    const end = new Date(begin);
+    end.setMonth(end.getMonth() + months);
+    setEndDate(toISO(end));
   }
 
   function save() {
@@ -162,32 +174,34 @@ export function AdminUserDialog({
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Inicio">
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </Field>
-                <Field label="Fin">
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </Field>
+                <DateField label="Inicio" value={startDate} onChange={setStartDate} />
+                <DateField label="Fin" value={endDate} onChange={setEndDate} />
               </div>
 
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="w-full"
-                onClick={addMonth}
-              >
-                <CalendarPlus className="h-4 w-4" /> +1 mes desde{" "}
-                {startDate ? "el inicio" : "hoy"}
-              </Button>
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">
+                  Duración rápida desde el inicio:
+                </p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {([
+                    ["1 mes", 1],
+                    ["3 meses", 3],
+                    ["6 meses", 6],
+                    ["1 año", 12],
+                  ] as const).map(([label, m]) => (
+                    <Button
+                      key={m}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="px-1 text-xs"
+                      onClick={() => setDuration(m)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <Button className="w-full" onClick={save} disabled={pending}>
@@ -207,6 +221,58 @@ export function AdminUserDialog({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+
+  function open() {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof el.showPicker === "function") {
+      try {
+        el.showPicker();
+        return;
+      } catch {
+        /* fallback */
+      }
+    }
+    el.focus();
+    el.click();
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <button
+        type="button"
+        onClick={open}
+        className="flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-input bg-secondary/40 px-3 text-left text-sm"
+      >
+        <span className={value ? "truncate" : "truncate text-muted-foreground"}>
+          {value ? fmtDate(value) : "Elegir"}
+        </span>
+        <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+      <input
+        ref={ref}
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+      />
+    </div>
   );
 }
 
