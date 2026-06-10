@@ -13,6 +13,7 @@ import {
   Dumbbell,
   Loader2,
   Pencil,
+  Play,
   Trash2,
 } from "lucide-react";
 import {
@@ -161,6 +162,13 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
               )}
             />
           </button>
+          <Link
+            href={`/plan/${workout.id}/train`}
+            aria-label="Iniciar entrenamiento"
+            className="shrink-0 rounded-lg bg-primary/15 p-2 text-primary transition-colors hover:bg-primary/25"
+          >
+            <Play className="h-4 w-4" />
+          </Link>
           <button
             onClick={() => setScheduleOpen(true)}
             aria-label="Programar rutina"
@@ -199,6 +207,11 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
 
         {open && (
           <div className="mt-4 space-y-4 animate-fade-in">
+            <Button asChild className="w-full">
+              <Link href={`/plan/${workout.id}/train`}>
+                <Play className="h-4 w-4" /> Iniciar modo entrenamiento
+              </Link>
+            </Button>
             {workout.plan.map((block, i) => (
               <div key={i}>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
