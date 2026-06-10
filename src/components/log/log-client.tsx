@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Camera,
+  Image as ImageIcon,
   Loader2,
   Lock,
   Search,
@@ -31,7 +32,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MEAL_TYPE_LABELS } from "@/lib/constants";
 import { round } from "@/lib/utils";
 import type { MealType } from "@/types/database";
-import type { Food } from "@/core/domain/entities";
+import type { FoodSearchItem } from "@/core/domain/entities";
 
 type Item = {
   name: string;
@@ -53,7 +54,8 @@ function defaultMealType(): MealType {
 
 export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   const [tab, setTab] = useState<Tab>(aiEnabled ? "photo" : "manual");
   const [mealType, setMealType] = useState<MealType>(defaultMealType());
@@ -68,7 +70,7 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
 
   // Registro manual (catálogo)
   const [foodQuery, setFoodQuery] = useState("");
-  const [foodResults, setFoodResults] = useState<Food[]>([]);
+  const [foodResults, setFoodResults] = useState<FoodSearchItem[]>([]);
   const [searchingFood, setSearchingFood] = useState(false);
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -127,7 +129,7 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
     }
   }
 
-  function addFood(f: Food) {
+  function addFood(f: FoodSearchItem) {
     const m = macrosForGrams(f, 100);
     setConfidence(null);
     setItems((prev) => [
@@ -274,10 +276,17 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
         <Card>
           <CardContent className="pt-5">
             <input
-              ref={fileRef}
+              ref={cameraRef}
               type="file"
               accept="image/*"
               capture="environment"
+              className="hidden"
+              onChange={onPickFile}
+            />
+            <input
+              ref={galleryRef}
+              type="file"
+              accept="image/*"
               className="hidden"
               onChange={onPickFile}
             />
@@ -290,23 +299,30 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
               />
             ) : (
               <button
-                onClick={() => fileRef.current?.click()}
+                onClick={() => galleryRef.current?.click()}
                 className="mb-3 flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border text-muted-foreground"
               >
                 <Camera className="h-8 w-8" />
                 <span className="text-sm">Toma o sube una foto</span>
               </button>
             )}
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
-                className="flex-1"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => cameraRef.current?.click()}
               >
-                {preview ? "Cambiar foto" : "Elegir foto"}
+                <Camera className="h-4 w-4" /> Cámara
               </Button>
               <Button
-                className="flex-1"
+                variant="outline"
+                onClick={() => galleryRef.current?.click()}
+              >
+                <ImageIcon className="h-4 w-4" /> Galería
+              </Button>
+            </div>
+            <div className="mt-2">
+              <Button
+                className="w-full"
                 onClick={analyze}
                 disabled={!preview || analyzing}
               >

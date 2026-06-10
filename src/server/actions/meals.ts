@@ -7,7 +7,8 @@ import {
   createFoodRepository,
   createMealRepository,
 } from "@/infrastructure/supabase/repositories";
-import type { Food } from "@/core/domain/entities";
+import { searchOpenFoodFacts } from "@/infrastructure/openfoodfacts/client";
+import type { FoodSearchItem } from "@/core/domain/entities";
 
 const itemSchema = z.object({
   name: z.string().min(1),
@@ -78,12 +79,38 @@ export async function saveMeal(
   return { ok: true };
 }
 
-/** Busca alimentos del catálogo (para el registro manual, sin IA). */
-export async function searchFoods(query: string): Promise<Food[]> {
+/** Busca alimentos (sin IA): base local + Open Food Facts, en español. */
+export async function searchFoods(query: string): Promise<FoodSearchItem[]> {
   const user = await getCurrentUser();
   if (!user || !query.trim()) return [];
+
   const supabase = await createClient();
-  return createFoodRepository(supabase).search(query, 12);
+  const [local, off] = await Promise.all([
+    createFoodRepository(supabase)
+      .search(query, 8)
+      .catch(() => []),
+    searchOpenFoodFacts(query, 12).catch(() => []),
+  ]);
+
+  const localItems: FoodSearchItem[] = local.map((f) => ({
+    id: f.id,
+    name: f.name,
+    kcal_per_100g: f.kcal_per_100g,
+    protein_per_100g: f.protein_per_100g,
+    carbs_per_100g: f.carbs_per_100g,
+    fat_per_100g: f.fat_per_100g,
+  }));
+
+  // Local primero (curado), luego Open Food Facts; sin duplicar por nombre.
+  const seen = new Set<string>();
+  const merged: FoodSearchItem[] = [];
+  for (const it of [...localItems, ...off]) {
+    const key = it.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(it);
+  }
+  return merged.slice(0, 16);
 }
 
 export async function deleteMeal(id: string): Promise<{ ok: boolean }> {

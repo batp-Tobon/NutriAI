@@ -23,6 +23,16 @@ export interface MealWithItems extends Meal {
   items: MealItem[];
 }
 
+/** Resultado de búsqueda de alimento (base local u Open Food Facts). */
+export interface FoodSearchItem {
+  id: string;
+  name: string;
+  kcal_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fat_per_100g: number;
+}
+
 /** Macronutrientes + calorías. */
 export interface Macros {
   kcal: number;
