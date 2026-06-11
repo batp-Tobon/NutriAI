@@ -115,81 +115,76 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
   return (
     <Card className={cn(completed && "border-primary/40")}>
       <CardContent className="pt-5">
-        <div className="flex items-start gap-2">
-          <button
-            onClick={() => setOpen((o) => !o)}
-            className="flex flex-1 items-start justify-between gap-3 text-left"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <Dumbbell className="h-4 w-4 text-primary" />
-                <h3 className="truncate font-semibold">{workout.title}</h3>
-                {completed && (
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-                )}
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">
-                  {WORKOUT_TYPE_LABELS[workout.workout_type]}
-                </Badge>
-                {workout.duration_min && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" /> {workout.duration_min} min
-                  </span>
-                )}
-                {workout.difficulty && (
-                  <span className="text-xs text-muted-foreground">
-                    {workout.difficulty}
-                  </span>
-                )}
-                {workout.scheduled_for && (
-                  <span className="flex items-center gap-1 text-xs font-medium text-primary">
-                    <CalendarDays className="h-3 w-3" />
-                    {new Date(
-                      `${workout.scheduled_for}T00:00:00`,
-                    ).toLocaleDateString("es", {
-                      day: "2-digit",
-                      month: "short",
-                    })}
-                  </span>
-                )}
-              </div>
-            </div>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 shrink-0 text-muted-foreground transition-transform",
-                open && "rotate-180",
-              )}
-            />
-          </button>
-          <Link
-            href={`/plan/${workout.id}/train`}
-            aria-label="Iniciar entrenamiento"
-            className="shrink-0 rounded-lg bg-primary/15 p-2 text-primary transition-colors hover:bg-primary/25"
-          >
-            <Play className="h-4 w-4" />
-          </Link>
-          <button
-            onClick={() => setScheduleOpen(true)}
-            aria-label="Programar rutina"
-            className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:text-primary"
-          >
-            <CalendarDays className="h-4 w-4" />
-          </button>
-          <Link
-            href={`/plan/${workout.id}/edit`}
-            aria-label="Editar rutina"
-            className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:text-primary"
-          >
-            <Pencil className="h-4 w-4" />
-          </Link>
-          <button
-            onClick={() => setConfirmOpen(true)}
-            aria-label="Eliminar rutina"
-            className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:text-destructive"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+        {/* Fila 1: título (toda la fila expande/colapsa) */}
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <Dumbbell className="h-4 w-4 shrink-0 text-primary" />
+            <h3 className="min-w-0 truncate font-semibold">{workout.title}</h3>
+            {completed && (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+            )}
+          </div>
+          <ChevronDown
+            className={cn(
+              "h-5 w-5 shrink-0 text-muted-foreground transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+
+        {/* Fila 2: info a la izquierda, acciones a la derecha */}
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+            <Badge variant="secondary">
+              {WORKOUT_TYPE_LABELS[workout.workout_type]}
+            </Badge>
+            {workout.duration_min && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3" /> {workout.duration_min} min
+              </span>
+            )}
+            {workout.scheduled_for && (
+              <span className="flex items-center gap-1 text-xs font-medium text-primary">
+                <CalendarDays className="h-3 w-3" />
+                {new Date(
+                  `${workout.scheduled_for}T00:00:00`,
+                ).toLocaleDateString("es", { day: "2-digit", month: "short" })}
+              </span>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Link
+              href={`/plan/${workout.id}/train`}
+              aria-label="Iniciar entrenamiento"
+              className="rounded-lg bg-primary/15 p-1.5 text-primary transition-colors hover:bg-primary/25"
+            >
+              <Play className="h-4 w-4" />
+            </Link>
+            <button
+              onClick={() => setScheduleOpen(true)}
+              aria-label="Programar rutina"
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-primary"
+            >
+              <CalendarDays className="h-4 w-4" />
+            </button>
+            <Link
+              href={`/plan/${workout.id}/edit`}
+              aria-label="Editar rutina"
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-primary"
+            >
+              <Pencil className="h-4 w-4" />
+            </Link>
+            <button
+              onClick={() => setConfirmOpen(true)}
+              aria-label="Eliminar rutina"
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Barra de progreso (siempre visible) */}

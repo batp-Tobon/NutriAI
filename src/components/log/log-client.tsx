@@ -52,6 +52,41 @@ function defaultMealType(): MealType {
   return "snack";
 }
 
+/**
+ * Comprime la foto en el dispositivo (máx 1280px, JPEG) para no superar el
+ * límite del servidor (4.5 MB) y abaratar el análisis con IA.
+ */
+async function compressImage(file: File, maxDim = 1280, quality = 0.82): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = dataUrl;
+  });
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  if (scale === 1 && file.size < 800_000) return dataUrl;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.width * scale));
+  canvas.height = Math.max(1, Math.round(img.height * scale));
+  canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [head, body] = dataUrl.split(",");
+  const mime = /data:(.*?);/.exec(head)?.[1] ?? "image/jpeg";
+  const bin = atob(body);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
 export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
   const router = useRouter();
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -59,7 +94,6 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
 
   const [tab, setTab] = useState<Tab>(aiEnabled ? "photo" : "manual");
   const [mealType, setMealType] = useState<MealType>(defaultMealType());
-  const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -73,14 +107,16 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
   const [foodResults, setFoodResults] = useState<FoodSearchItem[]>([]);
   const [searchingFood, setSearchingFood] = useState(false);
 
-  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
+    e.target.value = ""; // permite elegir la misma foto de nuevo
     if (!f) return;
-    setFile(f);
-    const reader = new FileReader();
-    reader.onload = () => setPreview(reader.result as string);
-    reader.readAsDataURL(f);
     setItems(null);
+    try {
+      setPreview(await compressImage(f));
+    } catch {
+      toast.error("No se pudo leer la imagen. Intenta con otra.");
+    }
   }
 
   async function analyze() {
@@ -96,12 +132,22 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
             : { description },
         ),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { error?: string; name?: string; confidence?: number; items?: Item[] };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(
+          res.status === 413
+            ? "La imagen es demasiado grande. Intenta con otra foto."
+            : "El servidor no respondió correctamente. Inténtalo de nuevo.",
+        );
+      }
       if (!res.ok) throw new Error(data.error ?? "Error al analizar");
-      setName(data.name);
+      setName(data.name ?? "Comida");
       setConfidence(data.confidence ?? null);
       setItems(
-        data.items.map((i: Item) => ({
+        (data.items ?? []).map((i: Item) => ({
           name: i.name,
           grams: round(i.grams),
           kcal: round(i.kcal),
@@ -177,7 +223,7 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
     setSaving(true);
     try {
       let image_url: string | null = null;
-      if (tab === "photo" && file) {
+      if (tab === "photo" && preview) {
         const supabase = createClient();
         const {
           data: { user },
@@ -186,7 +232,10 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
           const path = `${user.id}/${Date.now()}.jpg`;
           const { error } = await supabase.storage
             .from("meal-images")
-            .upload(path, file, { upsert: false });
+            .upload(path, dataUrlToBlob(preview), {
+              upsert: false,
+              contentType: "image/jpeg",
+            });
           if (!error) image_url = path;
         }
       }
@@ -202,7 +251,6 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
       if (!res.ok) throw new Error(res.error);
       toast.success("Comida registrada");
       setItems(null);
-      setFile(null);
       setPreview(null);
       setDescription("");
       setFoodResults([]);

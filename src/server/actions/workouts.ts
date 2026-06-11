@@ -225,6 +225,51 @@ export async function loadBaseWeek(): Promise<{
   return { ok: true, count: rows.length };
 }
 
+/** Reemplaza un ejercicio de la rutina (también usable en pleno entrenamiento). */
+export async function swapExercise(
+  workoutId: string,
+  blockIndex: number,
+  exIndex: number,
+  repl: { name: string; gif_url?: string | null; target?: string | null },
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+  if (!repl.name?.trim()) return { ok: false, error: "Nombre vacío" };
+
+  const supabase = await createClient();
+  const { data: w } = await supabase
+    .from("workouts")
+    .select("plan")
+    .eq("id", workoutId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!w) return { ok: false, error: "Rutina no encontrada" };
+
+  const plan = (w.plan ?? []) as WorkoutBlock[];
+  const ex = plan[blockIndex]?.exercises?.[exIndex];
+  if (!ex) return { ok: false, error: "Ejercicio no encontrado" };
+
+  const next: WorkoutExercise = {
+    ...ex,
+    name: repl.name.trim(),
+  };
+  if (repl.gif_url) next.gif_url = repl.gif_url;
+  else delete next.gif_url;
+  if (repl.target) next.target = repl.target;
+  else delete next.target;
+  plan[blockIndex].exercises[exIndex] = next;
+
+  const { error } = await supabase
+    .from("workouts")
+    .update({ plan })
+    .eq("id", workoutId)
+    .eq("user_id", user.id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/plan");
+  return { ok: true };
+}
+
 export async function deleteWorkout(id: string): Promise<{ ok: boolean }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false };
