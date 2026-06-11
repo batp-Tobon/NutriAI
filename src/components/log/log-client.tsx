@@ -8,6 +8,8 @@ import {
   Image as ImageIcon,
   Loader2,
   Lock,
+  Pencil,
+  Plus,
   Search,
   Sparkles,
   Trash2,
@@ -107,6 +109,12 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
   const [foodResults, setFoodResults] = useState<FoodSearchItem[]>([]);
   const [searchingFood, setSearchingFood] = useState(false);
 
+  // Edición del resultado (IA o manual): macros por ítem + añadir componentes
+  const [editIdx, setEditIdx] = useState<number | null>(null);
+  const [addQuery, setAddQuery] = useState("");
+  const [addResults, setAddResults] = useState<FoodSearchItem[]>([]);
+  const [addSearching, setAddSearching] = useState(false);
+
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = ""; // permite elegir la misma foto de nuevo
@@ -205,7 +213,44 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
   }
 
   function removeItem(idx: number) {
+    setEditIdx(null);
     setItems((prev) => (prev ? prev.filter((_, i) => i !== idx) : prev));
+  }
+
+  function updateItemField(idx: number, patch: Partial<Item>) {
+    setItems((prev) =>
+      prev ? prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)) : prev,
+    );
+  }
+
+  function addBlankItem() {
+    setItems((prev) => {
+      const next = [
+        ...(prev ?? []),
+        { name: "", grams: 100, kcal: 0, protein: 0, carbs: 0, fat: 0 },
+      ];
+      setEditIdx(next.length - 1);
+      return next;
+    });
+    if (!name) setName("Comida");
+  }
+
+  async function searchToAdd() {
+    if (!addQuery.trim()) return;
+    setAddSearching(true);
+    try {
+      setAddResults(await searchFoods(addQuery));
+    } catch {
+      toast.error("Error al buscar");
+    } finally {
+      setAddSearching(false);
+    }
+  }
+
+  function addFromSearch(f: FoodSearchItem) {
+    addFood(f);
+    setAddResults([]);
+    setAddQuery("");
   }
 
   const totals = (items ?? []).reduce(
@@ -220,6 +265,10 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
 
   async function save() {
     if (!items || items.length === 0) return;
+    if (items.some((i) => !i.name.trim())) {
+      toast.error("Hay alimentos sin nombre. Complétalos o quítalos.");
+      return;
+    }
     setSaving(true);
     try {
       let image_url: string | null = null;
@@ -466,31 +515,128 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
 
             <div className="space-y-2">
               {items.map((it, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-2 rounded-xl bg-secondary/40 p-2.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{it.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {it.kcal} kcal · P{it.protein} C{it.carbs} G{it.fat}
-                    </p>
+                <div key={idx} className="rounded-xl bg-secondary/40 p-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <input
+                        value={it.name}
+                        onChange={(e) =>
+                          updateItemField(idx, { name: e.target.value })
+                        }
+                        placeholder="Nombre del alimento"
+                        className="w-full bg-transparent text-sm font-medium placeholder:text-muted-foreground focus:outline-none"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {Math.round(it.kcal)} kcal · P{it.protein} C{it.carbs} G
+                        {it.fat}
+                      </p>
+                    </div>
+                    <input
+                      type="number"
+                      value={it.grams}
+                      onChange={(e) => updateGrams(idx, Number(e.target.value))}
+                      className="h-9 w-16 rounded-lg border border-input bg-background px-2 text-right text-base"
+                    />
+                    <span className="text-xs text-muted-foreground">g</span>
+                    <button
+                      onClick={() =>
+                        setEditIdx((cur) => (cur === idx ? null : idx))
+                      }
+                      aria-label="Editar macros"
+                      className={
+                        editIdx === idx
+                          ? "text-primary"
+                          : "text-muted-foreground hover:text-primary"
+                      }
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => removeItem(idx)}
+                      aria-label="Quitar alimento"
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
-                  <input
-                    type="number"
-                    value={it.grams}
-                    onChange={(e) => updateGrams(idx, Number(e.target.value))}
-                    className="h-9 w-16 rounded-lg border border-input bg-background px-2 text-right text-base"
-                  />
-                  <span className="text-xs text-muted-foreground">g</span>
-                  <button
-                    onClick={() => removeItem(idx)}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+
+                  {/* Corregir lo que trajo la IA (o lo manual) */}
+                  {editIdx === idx && (
+                    <div className="mt-2 grid grid-cols-4 gap-1.5 border-t border-border/60 pt-2 animate-fade-in">
+                      <MacroInput
+                        label="Kcal"
+                        value={it.kcal}
+                        onChange={(v) => updateItemField(idx, { kcal: v })}
+                      />
+                      <MacroInput
+                        label="Prot (g)"
+                        value={it.protein}
+                        onChange={(v) => updateItemField(idx, { protein: v })}
+                      />
+                      <MacroInput
+                        label="Carb (g)"
+                        value={it.carbs}
+                        onChange={(v) => updateItemField(idx, { carbs: v })}
+                      />
+                      <MacroInput
+                        label="Grasa (g)"
+                        value={it.fat}
+                        onChange={(v) => updateItemField(idx, { fat: v })}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
+            </div>
+
+            {/* Añadir componentes a la comida */}
+            <div className="space-y-2 rounded-xl border border-dashed border-border p-2.5">
+              <div className="flex gap-2">
+                <input
+                  value={addQuery}
+                  onChange={(e) => setAddQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && searchToAdd()}
+                  placeholder="Añadir alimento (pollo, arroz…)"
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-base"
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-10"
+                  onClick={searchToAdd}
+                  disabled={addSearching}
+                >
+                  {addSearching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10"
+                  onClick={addBlankItem}
+                >
+                  <Plus className="h-4 w-4" /> Manual
+                </Button>
+              </div>
+              {addResults.length > 0 && (
+                <div className="space-y-1">
+                  {addResults.slice(0, 6).map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => addFromSearch(f)}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg bg-secondary/40 px-3 py-2 text-left text-sm transition-colors hover:bg-secondary"
+                    >
+                      <span className="min-w-0 truncate">{f.name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {f.kcal_per_100g} kcal/100g
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between rounded-xl bg-primary/10 p-3 text-sm">
@@ -508,6 +654,29 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+function MacroInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-0.5 text-[10px] text-muted-foreground">{label}</p>
+      <input
+        type="number"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        className="h-9 w-full rounded-lg border border-input bg-background px-1 text-center text-base"
+      />
     </div>
   );
 }
