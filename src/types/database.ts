@@ -283,6 +283,7 @@ export interface Database {
       recalc_meal_totals: { Args: { p_meal_id: string }; Returns: undefined };
       delete_old_data: { Args: Record<string, never>; Returns: undefined };
       consume_ai_credit: { Args: { p_limit: number }; Returns: boolean };
+      add_water: { Args: { p_ml: number; p_date: string }; Returns: number };
     };
     Enums: {
       user_role: UserRole;

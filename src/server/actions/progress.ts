@@ -79,7 +79,11 @@ export async function logSleep(
   return { ok: true };
 }
 
-/** Suma (o resta) agua al total de hoy. Devuelve el nuevo total en ml. */
+/**
+ * Suma (o resta) agua al total de hoy de forma ATÓMICA en la BD.
+ * Soporta toques rápidos sin perder incrementos. Sin revalidatePath aquí:
+ * el cliente refresca con debounce para que los botones no se bloqueen.
+ */
 export async function addWater(
   ml: number,
 ): Promise<{ ok: boolean; total?: number }> {
@@ -87,24 +91,12 @@ export async function addWater(
   if (!user) return { ok: false };
 
   const supabase = await createClient();
-  const today = todayISO();
-  const { data: existing } = await supabase
-    .from("progress")
-    .select("water_ml")
-    .eq("user_id", user.id)
-    .eq("recorded_at", today)
-    .maybeSingle();
-
-  const total = Math.max(0, (existing?.water_ml ?? 0) + ml);
-  await supabase
-    .from("progress")
-    .upsert(
-      { user_id: user.id, water_ml: total, recorded_at: today },
-      { onConflict: "user_id,recorded_at" },
-    );
-
-  revalidatePath("/dashboard");
-  return { ok: true, total };
+  const { data, error } = await supabase.rpc("add_water", {
+    p_ml: Math.round(ml),
+    p_date: todayISO(),
+  });
+  if (error) return { ok: false };
+  return { ok: true, total: data ?? undefined };
 }
 
 export interface MeasurementInput {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Droplet, Minus, Plus } from "lucide-react";
@@ -17,25 +17,42 @@ export function WaterCard({
   goal: number;
 }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
   const [ml, setMl] = useState(current);
+  const seq = useRef(0);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const pct = goal > 0 ? Math.min(100, Math.round((ml / goal) * 100)) : 0;
-  const glasses = Math.round(ml / 250);
+  // Sincroniza con el valor del servidor tras cada refresh
+  useEffect(() => setMl(current), [current]);
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    },
+    [],
+  );
+
+  function scheduleRefresh() {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    // Un solo refresh cuando dejas de tocar (mantiene fluidez)
+    refreshTimer.current = setTimeout(() => router.refresh(), 1500);
+  }
 
   function add(amount: number) {
-    setMl((m) => Math.max(0, m + amount)); // feedback inmediato
-    start(async () => {
-      const res = await addWater(amount);
+    setMl((m) => Math.max(0, m + amount)); // optimista, sin bloquear botones
+    const my = ++seq.current;
+    void addWater(amount).then((res) => {
       if (!res.ok) {
-        toast.error("Error");
+        toast.error("No se pudo guardar el agua. ¿Corriste la migración 0013?");
         router.refresh();
         return;
       }
-      if (res.total != null) setMl(res.total);
-      router.refresh();
+      // Sólo la respuesta más reciente manda (toques rápidos en vuelo)
+      if (seq.current === my && res.total != null) setMl(res.total);
+      scheduleRefresh();
     });
   }
+
+  const pct = goal > 0 ? Math.min(100, Math.round((ml / goal) * 100)) : 0;
+  const glasses = Math.round(ml / 250);
 
   return (
     <Card>
@@ -44,7 +61,7 @@ export function WaterCard({
           <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
             <Droplet className="h-4 w-4 text-primary" /> Hidratación
           </h2>
-          <span className="text-sm font-bold">
+          <span className="text-sm font-bold tabular-nums">
             {ml}
             <span className="text-xs font-normal text-muted-foreground">
               {" "}
@@ -59,7 +76,6 @@ export function WaterCard({
             variant="secondary"
             className="flex-1"
             onClick={() => add(250)}
-            disabled={pending}
           >
             <Plus className="h-4 w-4" /> Vaso
           </Button>
@@ -68,7 +84,6 @@ export function WaterCard({
             variant="secondary"
             className="flex-1"
             onClick={() => add(500)}
-            disabled={pending}
           >
             <Plus className="h-4 w-4" /> Botella
           </Button>
@@ -76,7 +91,7 @@ export function WaterCard({
             size="icon"
             variant="outline"
             onClick={() => add(-250)}
-            disabled={pending || ml <= 0}
+            disabled={ml <= 0}
             aria-label="Quitar agua"
           >
             <Minus className="h-4 w-4" />
