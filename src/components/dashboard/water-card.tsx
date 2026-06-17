@@ -37,12 +37,13 @@ export function WaterCard({
   }
 
   function add(amount: number) {
+    const prev = ml;
     setMl((m) => Math.max(0, m + amount)); // optimista, sin bloquear botones
     const my = ++seq.current;
     void addWater(amount).then((res) => {
       if (!res.ok) {
-        toast.error("No se pudo guardar el agua. ¿Corriste la migración 0013?");
-        router.refresh();
+        toast.error(res.error ?? "No se pudo guardar el agua");
+        setMl(prev); // revierte el optimismo si falló de verdad
         return;
       }
       // Sólo la respuesta más reciente manda (toques rápidos en vuelo)

@@ -80,23 +80,46 @@ export async function logSleep(
 }
 
 /**
- * Suma (o resta) agua al total de hoy de forma ATÓMICA en la BD.
- * Soporta toques rápidos sin perder incrementos. Sin revalidatePath aquí:
- * el cliente refresca con debounce para que los botones no se bloqueen.
+ * Suma (o resta) agua al total de hoy. Intenta la función ATÓMICA `add_water`
+ * (a prueba de toques rápidos); si esa función aún no existe en la BD, cae a un
+ * guardado directo para que SIEMPRE guarde, sin depender de correr la migración.
+ * Sin revalidatePath: el cliente refresca con debounce y los botones no se bloquean.
  */
 export async function addWater(
   ml: number,
-): Promise<{ ok: boolean; total?: number }> {
+): Promise<{ ok: boolean; total?: number; error?: string }> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false };
+  if (!user) return { ok: false, error: "No autenticado" };
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("add_water", {
-    p_ml: Math.round(ml),
-    p_date: todayISO(),
-  });
-  if (error) return { ok: false };
-  return { ok: true, total: data ?? undefined };
+  const today = todayISO();
+  const delta = Math.round(ml);
+
+  // 1) Camino ideal: suma atómica en la BD (no pierde toques simultáneos).
+  const rpc = await supabase.rpc("add_water", { p_ml: delta, p_date: today });
+  if (!rpc.error) return { ok: true, total: rpc.data ?? undefined };
+
+  // 2) Respaldo: leer + escribir (funciona aunque no se haya corrido 0013).
+  try {
+    const { data: existing } = await supabase
+      .from("progress")
+      .select("water_ml")
+      .eq("user_id", user.id)
+      .eq("recorded_at", today)
+      .maybeSingle();
+
+    const total = Math.max(0, (existing?.water_ml ?? 0) + delta);
+    const { error: upErr } = await supabase
+      .from("progress")
+      .upsert(
+        { user_id: user.id, water_ml: total, recorded_at: today },
+        { onConflict: "user_id,recorded_at" },
+      );
+    if (upErr) return { ok: false, error: upErr.message };
+    return { ok: true, total };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error" };
+  }
 }
 
 export interface MeasurementInput {
