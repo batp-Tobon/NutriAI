@@ -74,6 +74,89 @@ export function calcDailyTargets(input: NutritionInput): Macros {
   return { kcal, protein, carbs, fat };
 }
 
+/** Energía aproximada de 1 kg de grasa corporal (kcal). Estándar usado por apps. */
+export const KCAL_PER_KG_FAT = 7700;
+
+export interface DeficitInput {
+  sex: Sex;
+  age: number;
+  heightCm: number;
+  weightKg: number;
+  activityLevel: ActivityLevel;
+  goal: Goal;
+  /** kcal consumidas hoy (suma de comidas). */
+  consumedKcal: number;
+  /** kcal gastadas hoy en ejercicio registrado (extra sobre la actividad diaria). */
+  exerciseKcal: number;
+  /** Objetivo calórico del perfil (si existe); si no, se calcula por la meta. */
+  targetKcal?: number | null;
+}
+
+export interface DeficitReport {
+  bmr: number;
+  /** Mantenimiento = gasto del día sin ejercicio extra. */
+  tdee: number;
+  exercise: number;
+  /** Gasto total estimado del día = TDEE + ejercicio. */
+  expenditure: number;
+  consumed: number;
+  /** consumido − gasto. Negativo = déficit (estás gastando más de lo que comes). */
+  balance: number;
+  /** Magnitud del déficit (positivo cuando hay déficit; 0 si hay superávit). */
+  deficit: number;
+  inDeficit: boolean;
+  /** % del mantenimiento que representa lo consumido. */
+  pctOfMaintenance: number;
+  /** Ingesta recomendada según la meta (déficit/superávit saludable). */
+  targetKcal: number;
+  /** Déficit objetivo por día según la meta (TDEE − ingesta recomendada). */
+  targetDeficit: number;
+  /** Proyección de cambio de peso si se mantiene el balance de hoy. */
+  weeklyKg: number;
+  monthlyKg: number;
+}
+
+/**
+ * Reporte de déficit calórico del día con todas las cifras intermedias visibles
+ * (BMR → TDEE → gasto total → balance → proyección). Método tipo MyFitnessPal:
+ * el ejercicio registrado se suma como gasto extra sobre la actividad diaria.
+ */
+export function calcDeficit(input: DeficitInput): DeficitReport {
+  const bmr = round(calcBMR(input));
+  const tdee = round(calcTDEE(input));
+  const exercise = Math.max(0, round(input.exerciseKcal));
+  const expenditure = tdee + exercise;
+  const consumed = Math.max(0, round(input.consumedKcal));
+
+  const balance = consumed - expenditure; // < 0 = déficit
+  const deficit = balance < 0 ? -balance : 0;
+
+  const targetKcal =
+    input.targetKcal && input.targetKcal > 0
+      ? round(input.targetKcal)
+      : calcDailyTargets(input).kcal;
+  const targetDeficit = Math.max(0, tdee - targetKcal);
+
+  const weeklyKg = round((balance * 7) / KCAL_PER_KG_FAT, 2);
+  const monthlyKg = round((balance * 30) / KCAL_PER_KG_FAT, 2);
+
+  return {
+    bmr,
+    tdee,
+    exercise,
+    expenditure,
+    consumed,
+    balance,
+    deficit,
+    inDeficit: balance < 0,
+    pctOfMaintenance: tdee > 0 ? Math.round((consumed / tdee) * 100) : 0,
+    targetKcal,
+    targetDeficit,
+    weeklyKg,
+    monthlyKg,
+  };
+}
+
 /** Suma de macros (p. ej. todas las comidas del día). */
 export function sumMacros(items: Macros[]): Macros {
   return items.reduce<Macros>(
