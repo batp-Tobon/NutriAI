@@ -2,20 +2,33 @@ import Link from "next/link";
 import {
   Activity,
   ArrowRight,
+  Droplet,
   Dumbbell,
   Flame,
   Info,
+  Moon,
   Scale,
   TrendingDown,
   TrendingUp,
   UtensilsCrossed,
+  Beef,
 } from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
-import { createMealRepository } from "@/infrastructure/supabase/repositories";
-import { calcDeficit, caloriesBurned } from "@/core/application/nutrition";
+import {
+  createMealRepository,
+  createProgressRepository,
+} from "@/infrastructure/supabase/repositories";
+import {
+  calcDeficit,
+  caloriesBurned,
+  energyStatus,
+  proteinStatus,
+  sleepStatus,
+  type StatusLevel,
+} from "@/core/application/nutrition";
+import { waterGoalMl } from "@/core/application/insights";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { GOAL_LABELS } from "@/lib/constants";
 import {
   dayBoundsUTC,
@@ -41,11 +54,14 @@ export default async function DeficitPage() {
   const today = todayISO();
   const weekAgo = shiftDateISO(today, -6);
 
-  // Comidas y entrenamientos de los últimos 7 días (para hoy + tendencia)
   const mealsWeek = await createMealRepository(supabase).listBetween(
     user!.id,
     dayBoundsUTC(weekAgo).from,
     dayBoundsUTC(today).to,
+  );
+  const progressWeek = await createProgressRepository(supabase).list(
+    user!.id,
+    14,
   );
   const { data: workoutsWeek } = await supabase
     .from("workouts")
@@ -55,26 +71,35 @@ export default async function DeficitPage() {
     .gte("completed_at", dayBoundsUTC(weekAgo).from)
     .lte("completed_at", dayBoundsUTC(today).to);
 
-  // Agrupar consumo y gasto por día local
   const weightKg = profile?.current_weight_kg ?? null;
-  const consumedByDay = new Map<string, number>();
+
+  // Consumo (kcal + macros) por día local
+  const consumedByDay = new Map<
+    string,
+    { kcal: number; protein: number; carbs: number; fat: number }
+  >();
   for (const m of mealsWeek) {
     const d = toAppDateISO(m.consumed_at);
-    consumedByDay.set(d, (consumedByDay.get(d) ?? 0) + (m.total_kcal ?? 0));
+    const cur = consumedByDay.get(d) ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+    cur.kcal += m.total_kcal ?? 0;
+    cur.protein += m.total_protein ?? 0;
+    cur.carbs += m.total_carbs ?? 0;
+    cur.fat += m.total_fat ?? 0;
+    consumedByDay.set(d, cur);
   }
   const burnedByDay = new Map<string, number>();
+  const trainedDays = new Set<string>();
   for (const w of workoutsWeek ?? []) {
     if (!w.completed_at) continue;
     const d = toAppDateISO(w.completed_at);
-    const k = caloriesBurned(
-      w.workout_type as WorkoutType,
-      w.duration_min,
-      weightKg,
+    trainedDays.add(d);
+    burnedByDay.set(
+      d,
+      (burnedByDay.get(d) ?? 0) +
+        caloriesBurned(w.workout_type as WorkoutType, w.duration_min, weightKg),
     );
-    burnedByDay.set(d, (burnedByDay.get(d) ?? 0) + k);
   }
 
-  // ¿Perfil completo para calcular el metabolismo?
   const ready =
     profile?.sex != null &&
     profile?.age != null &&
@@ -110,6 +135,12 @@ export default async function DeficitPage() {
   }
 
   const goal = profile.goal ?? "maintain";
+  const todayConsumed = consumedByDay.get(today) ?? {
+    kcal: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+  };
   const rep = calcDeficit({
     sex: profile.sex!,
     age: profile.age!,
@@ -117,34 +148,73 @@ export default async function DeficitPage() {
     weightKg: weightKg!,
     activityLevel: profile.activity_level!,
     goal,
-    consumedKcal: consumedByDay.get(today) ?? 0,
+    consumedKcal: todayConsumed.kcal,
     exerciseKcal: burnedByDay.get(today) ?? 0,
     targetKcal: profile.daily_calorie_target,
   });
 
-  // Barras de la "balanza": consumido vs gasto total
+  // Objetivos de macros (perfil o fallback)
+  const kcalTarget = profile.daily_calorie_target ?? rep.targetKcal;
+  const proteinTarget = profile.daily_protein_target ?? Math.round(weightKg! * 2);
+  const carbsTarget = profile.daily_carbs_target ?? null;
+  const fatTarget = profile.daily_fat_target ?? null;
+
+  // Agua y sueño de hoy (sueño: 8 h por defecto si no se registró)
+  const todayProgress = progressWeek.find((p) => p.recorded_at === today);
+  const waterMl = todayProgress?.water_ml ?? 0;
+  const waterGoal = waterGoalMl(weightKg);
+  const sleepRaw = todayProgress?.sleep_hours ?? null;
+  const sleepEstimated = sleepRaw == null;
+  const sleepHours = sleepRaw != null ? Number(sleepRaw) : 8;
+
+  // Estados (recomposición)
+  const energy = energyStatus(rep);
+  const protein = proteinStatus(todayConsumed.protein, weightKg!);
+  const sleep = sleepStatus(sleepHours);
+  const trainedToday = trainedDays.has(today);
+  const trainingDaysWeek = trainedDays.size;
+
+  // Balanza visual
   const maxBar = Math.max(rep.consumed, rep.expenditure, 1);
   const consumedW = Math.round((rep.consumed / maxBar) * 100);
   const expW = Math.round((rep.expenditure / maxBar) * 100);
 
-  // Tendencia 7 días (balance neto por día)
+  // Tendencia 7 días
   const trend = Array.from({ length: 7 }, (_, i) => {
     const d = shiftDateISO(today, -(6 - i));
-    const consumed = consumedByDay.get(d) ?? 0;
+    const consumed = consumedByDay.get(d)?.kcal ?? 0;
     const burned = burnedByDay.get(d) ?? 0;
-    const expenditure = rep.tdee + burned;
     return {
       date: d,
-      balance: Math.round(consumed - expenditure),
+      balance: Math.round(consumed - (rep.tdee + burned)),
       hasData: consumed > 0 || burned > 0,
     };
   });
 
-  // Progreso hacia el déficit objetivo (solo si la meta es perder grasa)
-  const towardGoal =
-    rep.targetDeficit > 0
-      ? Math.min(100, Math.round((rep.deficit / rep.targetDeficit) * 100))
-      : 0;
+  // Recomendaciones dinámicas para bajar grasa hoy
+  const recs: string[] = [];
+  if (todayConsumed.protein < proteinTarget)
+    recs.push(
+      `Te faltan ${Math.round(proteinTarget - todayConsumed.protein)} g de proteína. Suma pollo, huevo, atún, yogur griego o claras.`,
+    );
+  if (rep.balance > 150)
+    recs.push(
+      `Hoy vas +${rep.balance} kcal (superávit). Aligera la cena o suma una caminata para volver a déficit.`,
+    );
+  if (energy.level === "bad")
+    recs.push(
+      "Tu déficit es muy agresivo: comer tan poco puede costarte músculo. Sube un poco las calorías con proteína.",
+    );
+  if (!trainedToday)
+    recs.push(
+      "Entrena fuerza hoy: es lo que conserva (y gana) músculo mientras pierdes grasa.",
+    );
+  if (waterMl < waterGoal)
+    recs.push(
+      `Bebe ${waterGoal - waterMl} ml más de agua; ayuda a controlar el hambre.`,
+    );
+  if (sleepHours < 7 && !sleepEstimated)
+    recs.push("Dormir menos de 7 h frena la pérdida de grasa y la recuperación.");
 
   return (
     <div className="space-y-4 py-2 pb-6">
@@ -184,13 +254,8 @@ export default async function DeficitPage() {
             {rep.balance > 0 ? "+" : ""}
             {rep.balance} <span className="text-lg font-bold">kcal</span>
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {rep.inDeficit
-              ? `Gastas ${rep.deficit} kcal más de lo que comes hoy`
-              : `Comes ${Math.abs(rep.balance)} kcal más de lo que gastas hoy`}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{energy.message}</p>
 
-          {/* Balanza visual */}
           <div className="mt-4 space-y-2 text-left">
             <Bar
               label="Consumido"
@@ -210,7 +275,100 @@ export default async function DeficitPage() {
         </CardContent>
       </Card>
 
-      {/* DESGLOSE: de dónde sale cada número */}
+      {/* ¿CÓMO VAS HOY? — comida, proteína, agua, sueño, entreno */}
+      <Card>
+        <CardContent className="p-4">
+          <h2 className="mb-3 text-sm font-semibold">¿Cómo vas hoy?</h2>
+          <div className="space-y-3">
+            <MetricBar
+              icon={<UtensilsCrossed className="h-4 w-4" />}
+              label="Calorías"
+              value={Math.round(todayConsumed.kcal)}
+              target={Math.round(kcalTarget)}
+              unit="kcal"
+              over={todayConsumed.kcal > kcalTarget}
+            />
+            <MetricBar
+              icon={<Beef className="h-4 w-4" />}
+              label="Proteína"
+              sub={`${protein.perKg} g/kg · ${protein.message}`}
+              value={Math.round(todayConsumed.protein)}
+              target={proteinTarget}
+              unit="g"
+              tone={protein.level}
+              highlight
+            />
+            {carbsTarget != null && (
+              <MetricBar
+                icon={<Activity className="h-4 w-4" />}
+                label="Carbohidratos"
+                value={Math.round(todayConsumed.carbs)}
+                target={carbsTarget}
+                unit="g"
+              />
+            )}
+            {fatTarget != null && (
+              <MetricBar
+                icon={<Activity className="h-4 w-4" />}
+                label="Grasas"
+                value={Math.round(todayConsumed.fat)}
+                target={fatTarget}
+                unit="g"
+              />
+            )}
+            <MetricBar
+              icon={<Droplet className="h-4 w-4" />}
+              label="Agua"
+              value={waterMl}
+              target={waterGoal}
+              unit="ml"
+            />
+            <StatusRow
+              icon={<Moon className="h-4 w-4" />}
+              label="Sueño"
+              level={sleep.level}
+              value={`${sleepHours} h${sleepEstimated ? " (est.)" : ""}`}
+              sub={sleepEstimated ? "Registra tus horas reales" : sleep.message}
+            />
+            <StatusRow
+              icon={<Dumbbell className="h-4 w-4" />}
+              label="Entrenamiento"
+              level={trainedToday ? "good" : "warn"}
+              value={trainedToday ? "Hecho ✓" : "Pendiente"}
+              sub={`${trainingDaysWeek} día(s) esta semana`}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* RECOMPOSICIÓN: los 4 pilares */}
+      <Card className="border-primary/25">
+        <CardContent className="p-4">
+          <h2 className="text-sm font-semibold">
+            Recomposición: perder grasa + ganar músculo
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            No es solo comer menos. Para lograr ambas cosas a la vez necesitas:
+          </p>
+          <ul className="mt-2 space-y-1.5 text-xs">
+            <Pillar ok={energy.level !== "bad" && rep.balance <= 150}>
+              <b>Déficit moderado</b> (ni pasarte ni quedarte muy corto)
+            </Pillar>
+            <Pillar ok={protein.level === "good"}>
+              <b>Proteína alta</b> (~2 g/kg): {Math.round(todayConsumed.protein)}/
+              {proteinTarget} g hoy
+            </Pillar>
+            <Pillar ok={trainingDaysWeek >= 3}>
+              <b>Fuerza 3–5 días/semana</b>: {trainingDaysWeek} esta semana
+            </Pillar>
+            <Pillar ok={sleep.level === "good"}>
+              <b>Dormir 7–9 h</b> para recuperar y rendir
+            </Pillar>
+          </ul>
+        </CardContent>
+      </Card>
+
+      {/* DESGLOSE del cálculo */}
       <Card>
         <CardContent className="p-4">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
@@ -265,58 +423,10 @@ export default async function DeficitPage() {
             />
           </div>
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Llevas el <b>{rep.pctOfMaintenance}%</b> de tu mantenimiento
-            consumido hoy.
+            Meta «{GOAL_LABELS[goal]}» · ingesta recomendada ~
+            <b>{rep.targetKcal} kcal</b> (déficit objetivo {rep.targetDeficit}{" "}
+            kcal/día).
           </p>
-        </CardContent>
-      </Card>
-
-      {/* META: déficit recomendado según objetivo */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Tu meta</h2>
-            <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
-              {GOAL_LABELS[goal]}
-            </span>
-          </div>
-
-          {goal === "lose_fat" ? (
-            <>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Para perder grasa te recomiendo comer ~
-                <b className="text-foreground">{rep.targetKcal} kcal</b> (déficit
-                de <b className="text-foreground">{rep.targetDeficit} kcal/día</b>
-                ).
-              </p>
-              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Déficit de hoy: {rep.deficit} kcal</span>
-                <span>Meta: {rep.targetDeficit} kcal</span>
-              </div>
-              <Progress value={towardGoal} className="mt-1.5 h-2.5" />
-              <p className="mt-2 text-xs text-muted-foreground">
-                {rep.deficit >= rep.targetDeficit
-                  ? "✅ Vas en el déficit recomendado. ¡Bien!"
-                  : rep.inDeficit
-                    ? "Vas en déficit, pero aún por debajo de tu meta del día."
-                    : "Hoy todavía no estás en déficit; ajusta porciones o suma ejercicio."}
-              </p>
-            </>
-          ) : goal === "gain_muscle" ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Tu meta es ganar músculo: buscas un ligero <b>superávit</b>. Ingesta
-              recomendada ~<b className="text-foreground">{rep.targetKcal} kcal</b>
-              . {rep.consumed < rep.targetKcal
-                ? `Te faltan ${rep.targetKcal - rep.consumed} kcal para tu meta.`
-                : "Ya alcanzaste tu meta de hoy."}
-            </p>
-          ) : (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Tu meta es mantener: busca un balance cercano a <b>0</b>. Ingesta
-              recomendada ~<b className="text-foreground">{rep.targetKcal} kcal</b>
-              .
-            </p>
-          )}
         </CardContent>
       </Card>
 
@@ -350,9 +460,46 @@ export default async function DeficitPage() {
         </CardContent>
       </Card>
 
+      {/* RECOMENDACIONES PARA BAJAR GRASA */}
+      <Card>
+        <CardContent className="p-4">
+          <h2 className="mb-2 text-sm font-semibold">
+            Recomendaciones para bajar grasa
+          </h2>
+          {recs.length > 0 && (
+            <ul className="mb-3 space-y-1.5">
+              {recs.map((r, i) => (
+                <li
+                  key={i}
+                  className="flex gap-2 rounded-lg bg-primary/10 p-2 text-xs text-foreground"
+                >
+                  <span className="text-primary">→</span>
+                  {r}
+                </li>
+              ))}
+            </ul>
+          )}
+          <ul className="space-y-1.5 text-xs text-muted-foreground">
+            {[
+              "Llena medio plato de vegetales: sacian con muy pocas calorías.",
+              "Proteína en cada comida: conserva músculo y reduce el hambre.",
+              "Evita calorías líquidas (gaseosa, jugos, alcohol).",
+              "Prefiere a la plancha/horno en vez de frito.",
+              "Toma agua antes de comer; a veces es sed, no hambre.",
+              "Cuida las porciones de la noche y cocina tú cuando puedas.",
+            ].map((t, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-emerald-500">•</span>
+                {t}
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
       <p className="px-1 text-center text-[11px] leading-relaxed text-muted-foreground">
-        Son estimaciones basadas en fórmulas estándar (Mifflin-St Jeor). El gasto
-        real varía; úsalo como guía y ajusta según tus resultados.
+        Estimaciones con fórmulas estándar (Mifflin-St Jeor). El gasto real varía;
+        úsalo como guía y ajusta según tus resultados.
       </p>
     </div>
   );
@@ -366,7 +513,9 @@ function Header() {
       </div>
       <div>
         <h1 className="text-xl font-bold leading-none">Déficit calórico</h1>
-        <p className="text-xs text-muted-foreground">Tu balance de energía hoy</p>
+        <p className="text-xs text-muted-foreground">
+          Grasa abajo, músculo arriba
+        </p>
       </div>
     </div>
   );
@@ -403,6 +552,134 @@ function Bar({
         />
       </div>
     </div>
+  );
+}
+
+const TONE_BAR: Record<StatusLevel, string> = {
+  good: "bg-emerald-500",
+  warn: "bg-amber-500",
+  bad: "bg-red-500",
+};
+const TONE_TEXT: Record<StatusLevel, string> = {
+  good: "text-emerald-500",
+  warn: "text-amber-500",
+  bad: "text-red-500",
+};
+
+function MetricBar({
+  icon,
+  label,
+  sub,
+  value,
+  target,
+  unit,
+  over,
+  tone,
+  highlight,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  sub?: string;
+  value: number;
+  target: number;
+  unit: string;
+  over?: boolean;
+  tone?: StatusLevel;
+  highlight?: boolean;
+}) {
+  const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
+  const reached = value >= target;
+  const barColor = over
+    ? "bg-amber-500"
+    : tone
+      ? TONE_BAR[tone]
+      : reached
+        ? "bg-emerald-500"
+        : "bg-primary";
+  const remaining = Math.max(0, target - value);
+  return (
+    <div className={cn(highlight && "rounded-xl bg-primary/5 p-2 -mx-2")}>
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">{icon}</span>
+          <span className="font-medium">{label}</span>
+        </span>
+        <span className="tabular-nums text-muted-foreground">
+          <b className="text-foreground">{value}</b> / {target} {unit}
+        </span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+        <div
+          className={cn("h-full rounded-full", barColor)}
+          style={{ width: `${Math.max(2, pct)}%` }}
+        />
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {sub
+          ? sub
+          : over
+            ? `Te pasaste ${value - target} ${unit}`
+            : reached
+              ? "Meta alcanzada ✓"
+              : `Faltan ${remaining} ${unit}`}
+      </p>
+    </div>
+  );
+}
+
+function StatusRow({
+  icon,
+  label,
+  level,
+  value,
+  sub,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  level: StatusLevel;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", TONE_BAR[level])} />
+        <span className="text-muted-foreground">{icon}</span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium">{label}</p>
+          {sub && (
+            <p className="truncate text-[11px] text-muted-foreground">{sub}</p>
+          )}
+        </div>
+      </div>
+      <span className={cn("shrink-0 text-sm font-semibold", TONE_TEXT[level])}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function Pillar({
+  ok,
+  children,
+}: {
+  ok: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="flex items-start gap-2">
+      <span
+        className={cn(
+          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+          ok
+            ? "bg-emerald-500/20 text-emerald-500"
+            : "bg-muted text-muted-foreground",
+        )}
+      >
+        {ok ? "✓" : "•"}
+      </span>
+      <span className="text-muted-foreground">{children}</span>
+    </li>
   );
 }
 

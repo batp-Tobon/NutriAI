@@ -157,6 +157,63 @@ export function calcDeficit(input: DeficitInput): DeficitReport {
   };
 }
 
+export type StatusLevel = "good" | "warn" | "bad";
+
+/**
+ * Evalúa el balance de hoy pensando en RECOMPOSICIÓN (perder grasa + ganar
+ * músculo): lo ideal es un déficit MODERADO, no agresivo, para no perder músculo.
+ * Devuelve nivel + mensaje corto en español.
+ */
+export function energyStatus(rep: DeficitReport): {
+  level: StatusLevel;
+  message: string;
+} {
+  const moderate = Math.round(rep.tdee * 0.25); // ~déficit máximo recomendado
+  if (rep.balance > 150)
+    return {
+      level: "warn",
+      message: "Vas en superávit: hoy es difícil perder grasa.",
+    };
+  if (rep.deficit > moderate)
+    return {
+      level: "bad",
+      message: "Déficit muy agresivo: arriesgas perder músculo.",
+    };
+  if (rep.deficit < 100)
+    return {
+      level: "warn",
+      message: "Cerca de mantenimiento: la grasa baja lento.",
+    };
+  return { level: "good", message: "Déficit moderado ideal para recomponer." };
+}
+
+/** Estado de proteína del día (clave para conservar/ganar músculo). */
+export function proteinStatus(
+  proteinG: number,
+  weightKg: number,
+): { level: StatusLevel; perKg: number; message: string } {
+  const perKg = weightKg > 0 ? round(proteinG / weightKg, 1) : 0;
+  if (perKg >= 1.6)
+    return { level: "good", perKg, message: "Proteína suficiente para músculo." };
+  if (perKg >= 1.2)
+    return { level: "warn", perKg, message: "Sube un poco la proteína." };
+  return { level: "bad", perKg, message: "Proteína baja: prioriza más." };
+}
+
+/** Estado del sueño (recuperación). 7–9 h ideal. */
+export function sleepStatus(hours: number): {
+  level: StatusLevel;
+  message: string;
+} {
+  if (hours >= 7 && hours <= 9)
+    return { level: "good", message: "Buen descanso para recuperar." };
+  if (hours >= 6 && hours < 7)
+    return { level: "warn", message: "Algo corto; apunta a 7–9 h." };
+  if (hours > 9)
+    return { level: "warn", message: "Demasiado; revisa tu calidad de sueño." };
+  return { level: "bad", message: "Dormir poco frena grasa y músculo." };
+}
+
 /** Suma de macros (p. ej. todas las comidas del día). */
 export function sumMacros(items: Macros[]): Macros {
   return items.reduce<Macros>(
