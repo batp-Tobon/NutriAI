@@ -111,6 +111,10 @@ export interface DeficitReport {
   targetKcal: number;
   /** Déficit objetivo por día según la meta (TDEE − ingesta recomendada). */
   targetDeficit: number;
+  /** Ingesta recomendada para RECOMPOSICIÓN: déficit suave ~15% del TDEE. */
+  recompKcal: number;
+  /** Déficit objetivo para recomposición (~15% del TDEE). */
+  recompDeficit: number;
   /** Proyección de cambio de peso si se mantiene el balance de hoy. */
   weeklyKg: number;
   monthlyKg: number;
@@ -137,6 +141,10 @@ export function calcDeficit(input: DeficitInput): DeficitReport {
       : calcDailyTargets(input).kcal;
   const targetDeficit = Math.max(0, tdee - targetKcal);
 
+  // Recomposición: déficit suave del 15% conserva músculo mientras baja grasa.
+  const recompKcal = round(tdee * 0.85);
+  const recompDeficit = tdee - recompKcal;
+
   const weeklyKg = round((balance * 7) / KCAL_PER_KG_FAT, 2);
   const monthlyKg = round((balance * 30) / KCAL_PER_KG_FAT, 2);
 
@@ -152,6 +160,8 @@ export function calcDeficit(input: DeficitInput): DeficitReport {
     pctOfMaintenance: tdee > 0 ? Math.round((consumed / tdee) * 100) : 0,
     targetKcal,
     targetDeficit,
+    recompKcal,
+    recompDeficit,
     weeklyKg,
     monthlyKg,
   };

@@ -423,9 +423,10 @@ export default async function DeficitPage() {
             />
           </div>
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Meta «{GOAL_LABELS[goal]}» · ingesta recomendada ~
-            <b>{rep.targetKcal} kcal</b> (déficit objetivo {rep.targetDeficit}{" "}
-            kcal/día).
+            Meta «{GOAL_LABELS[goal]}». Para <b>recomponer</b> (grasa↓ músculo↑)
+            apunta a ~<b className="text-foreground">{rep.recompKcal} kcal</b>:
+            déficit <b>suave</b> de {rep.recompDeficit} kcal/día que conserva
+            músculo.
           </p>
         </CardContent>
       </Card>

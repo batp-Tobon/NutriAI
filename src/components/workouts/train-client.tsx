@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  Camera,
   Check,
   CheckCircle2,
   Clock,
@@ -16,6 +17,7 @@ import {
   Repeat2,
   Search,
   SkipForward,
+  Sparkles,
   Trophy,
   X,
 } from "lucide-react";
@@ -79,6 +81,32 @@ type SwapResult = {
   target: string;
   equipment: string;
 };
+
+/** Comprime una foto en el dispositivo a JPEG (evita subir imágenes enormes). */
+async function compressImage(file: File, maxDim = 1280, quality = 0.82): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result as string);
+    fr.onerror = () => reject(new Error("No se pudo leer la imagen"));
+    fr.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error("Imagen inválida"));
+    im.src = dataUrl;
+  });
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
 
 export function TrainClient({
   workout,
@@ -159,6 +187,8 @@ export function TrainClient({
   const [swapResults, setSwapResults] = useState<SwapResult[]>([]);
   const [swapLoading, setSwapLoading] = useState(false);
   const [swapping, startSwap] = useTransition();
+  const [identifying, setIdentifying] = useState(false);
+  const camRef = useRef<HTMLInputElement>(null);
 
   // Cargar/iniciar sesión persistida (sobrevive a recargas)
   useEffect(() => {
@@ -377,6 +407,58 @@ export function TrainClient({
       toast.error("Error al buscar");
     } finally {
       setSwapLoading(false);
+    }
+  }
+
+  async function identifyFromPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setIdentifying(true);
+    try {
+      const imageDataUrl = await compressImage(f);
+      const res = await fetch("/api/exercises/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageDataUrl }),
+      });
+      const text = await res.text();
+      let data: {
+        name?: string;
+        target?: string;
+        equipment?: string;
+        gif_url?: string;
+        error?: string;
+      };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        toast.error(
+          res.status === 413
+            ? "La foto es muy grande. Intenta con otra."
+            : "No se pudo identificar. Intenta de nuevo.",
+        );
+        return;
+      }
+      if (!res.ok || !data.name) {
+        toast.error(data.error ?? "No se pudo identificar el ejercicio.");
+        return;
+      }
+      // Mostrar lo identificado arriba (el usuario confirma o ajusta)
+      setSwapResults([
+        {
+          name: data.name,
+          gif_url: data.gif_url ?? "",
+          target: data.target ?? "",
+          equipment: data.equipment ?? "",
+        },
+      ]);
+      setSwapQuery(data.name);
+      toast.success(`Identificado: ${data.name}`);
+    } catch {
+      toast.error("Error al procesar la foto.");
+    } finally {
+      setIdentifying(false);
     }
   }
 
@@ -706,6 +788,38 @@ export function TrainClient({
             Reemplaza <b className="capitalize">{swapFor?.name}</b> por otro
             (se actualiza la rutina).
           </p>
+
+          {/* Identificar con foto de la máquina */}
+          <input
+            ref={camRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={identifyFromPhoto}
+          />
+          <Button
+            variant="default"
+            className="w-full"
+            onClick={() => camRef.current?.click()}
+            disabled={identifying}
+          >
+            {identifying ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Identificando…
+              </>
+            ) : (
+              <>
+                <Camera className="h-4 w-4" /> Tomar foto de la máquina
+                <Sparkles className="h-3.5 w-3.5 opacity-80" />
+              </>
+            )}
+          </Button>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="h-px flex-1 bg-border" /> o busca por nombre
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <div className="flex gap-2">
             <input
               value={swapQuery}
