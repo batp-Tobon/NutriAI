@@ -207,7 +207,8 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
                 <Play className="h-4 w-4" /> Iniciar modo entrenamiento
               </Link>
             </Button>
-            {workout.plan.map((block, i) => (
+            {workout.plan.map((block, i) =>
+              block.exercises.length === 0 ? null : (
               <div key={i}>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
                   {block.block}
@@ -269,7 +270,8 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
                   })}
                 </div>
               </div>
-            ))}
+              ),
+            )}
 
             {pct === 100 ? (
               <p className="rounded-xl bg-primary/15 py-2 text-center text-sm font-semibold text-primary">

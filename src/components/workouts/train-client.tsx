@@ -18,10 +18,16 @@ import {
   Search,
   SkipForward,
   Sparkles,
+  Trash2,
   Trophy,
   X,
 } from "lucide-react";
-import { completeWorkout, swapExercise } from "@/server/actions/workouts";
+import {
+  addExerciseToWorkout,
+  completeWorkout,
+  removeExercise,
+  swapExercise,
+} from "@/server/actions/workouts";
 import { deleteSetLog, logSet } from "@/server/actions/sets";
 import { caloriesBurned } from "@/core/application/nutrition";
 import { Button } from "@/components/ui/button";
@@ -177,12 +183,10 @@ export function TrainClient({
   } | null>(null);
   const [saving, startSave] = useTransition();
 
-  // Reemplazo de ejercicio en caliente
-  const [swapFor, setSwapFor] = useState<{
-    bi: number;
-    ei: number;
-    name: string;
-  } | null>(null);
+  // Selector de ejercicio: reemplazar uno (swap) o añadir uno nuevo (add).
+  const [picker, setPicker] = useState<
+    { mode: "swap"; bi: number; ei: number; name: string } | { mode: "add" } | null
+  >(null);
   const [swapQuery, setSwapQuery] = useState("");
   const [swapResults, setSwapResults] = useState<SwapResult[]>([]);
   const [swapLoading, setSwapLoading] = useState(false);
@@ -462,18 +466,94 @@ export function TrainClient({
     }
   }
 
-  function applySwap(repl: { name: string; gif_url?: string; target?: string }) {
-    if (!swapFor) return;
+  function closePicker() {
+    setPicker(null);
+    setSwapQuery("");
+    setSwapResults([]);
+  }
+
+  function applyPick(repl: { name: string; gif_url?: string; target?: string }) {
+    if (!picker) return;
     startSwap(async () => {
-      const res = await swapExercise(workout.id, swapFor.bi, swapFor.ei, repl);
+      if (picker.mode === "swap") {
+        const res = await swapExercise(workout.id, picker.bi, picker.ei, repl);
+        if (!res.ok) {
+          toast.error(res.error ?? "Error");
+          return;
+        }
+        toast.success(`Ejercicio cambiado a ${repl.name}`);
+      } else {
+        const res = await addExerciseToWorkout(workout.id, repl);
+        if (!res.ok) {
+          toast.error(res.error ?? "Error");
+          return;
+        }
+        toast.success(`Añadido: ${repl.name}`);
+      }
+      closePicker();
+      router.refresh();
+    });
+  }
+
+  /**
+   * Quita un ejercicio durante la sesión y RE-INDEXA el estado local (peso/reps/
+   * marcas) de los ejercicios que estaban después en el mismo bloque, para que
+   * no se desalineen al correrse los índices.
+   */
+  function removeExerciseLocal(e: (typeof exercises)[number]) {
+    const { bi, ei } = e;
+    // Borra de la BD las series ya registradas de este ejercicio.
+    for (let i = 0; i < setsOf(e); i++) {
+      const id = logIds[`${e.key}:${i}`];
+      if (id) void deleteSetLog(id);
+    }
+
+    const shift = <T,>(map: Record<string, T>): Record<string, T> => {
+      const out: Record<string, T> = {};
+      for (const [key, val] of Object.entries(map)) {
+        const m = /^(\d+)-(\d+)(:.*)?$/.exec(key);
+        if (!m) {
+          out[key] = val;
+          continue;
+        }
+        const kbi = Number(m[1]);
+        const kei = Number(m[2]);
+        const rest = m[3] ?? "";
+        if (kbi !== bi) {
+          out[key] = val;
+          continue;
+        }
+        if (kei === ei) continue; // descarta el eliminado
+        out[`${bi}-${kei > ei ? kei - 1 : kei}${rest}`] = val;
+      }
+      return out;
+    };
+
+    const nW = shift(setW);
+    const nR = shift(setR);
+    const nDone = shift(doneMap);
+    const nExtra = shift(extra);
+    const nLog = shift(logIds);
+    setSetW(nW);
+    setSetR(nR);
+    setDoneMap(nDone);
+    setExtra(nExtra);
+    setLogIds(nLog);
+    persistAll({
+      doneMap: nDone,
+      setW: nW,
+      setR: nR,
+      extra: nExtra,
+      logIds: nLog,
+    });
+
+    startSwap(async () => {
+      const res = await removeExercise(workout.id, bi, ei);
       if (!res.ok) {
-        toast.error(res.error ?? "Error");
+        toast.error(res.error ?? "Error al eliminar");
         return;
       }
-      toast.success(`Ejercicio cambiado a ${repl.name}`);
-      setSwapFor(null);
-      setSwapQuery("");
-      setSwapResults([]);
+      toast.success(`Eliminado: ${e.name}`);
       router.refresh();
     });
   }
@@ -563,7 +643,8 @@ export function TrainClient({
       </Card>
 
       {/* Ejercicios */}
-      {workout.plan.map((block, bi) => (
+      {workout.plan.map((block, bi) =>
+        block.exercises.length === 0 ? null : (
         <div key={bi}>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
             {block.block}
@@ -613,17 +694,27 @@ export function TrainClient({
                           {best != null && best > 0 ? ` · 🏆 ${best} kg` : ""}
                         </p>
                       </div>
-                      <button
-                        onClick={() => {
-                          setSwapFor({ bi, ei, name: ex.name });
-                          setSwapQuery("");
-                          setSwapResults([]);
-                        }}
-                        aria-label="Cambiar ejercicio"
-                        className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:text-primary"
-                      >
-                        <Repeat2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex shrink-0 items-center">
+                        <button
+                          onClick={() => {
+                            setPicker({ mode: "swap", bi, ei, name: ex.name });
+                            setSwapQuery("");
+                            setSwapResults([]);
+                          }}
+                          aria-label="Cambiar ejercicio"
+                          className="rounded-lg p-2 text-muted-foreground transition-colors hover:text-primary"
+                        >
+                          <Repeat2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => removeExerciseLocal(e)}
+                          disabled={swapping}
+                          aria-label="Eliminar ejercicio"
+                          className="rounded-lg p-2 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Filas por serie: cada una con SU peso y reps */}
@@ -721,6 +812,18 @@ export function TrainClient({
         </div>
       ))}
 
+      {/* Añadir un ejercicio nuevo durante la sesión */}
+      <button
+        onClick={() => {
+          setPicker({ mode: "add" });
+          setSwapQuery("");
+          setSwapResults([]);
+        }}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
+      >
+        <Plus className="h-4 w-4" /> Añadir ejercicio
+      </button>
+
       {/* Finalizar */}
       <Button
         className="w-full"
@@ -773,20 +876,31 @@ export function TrainClient({
         </div>
       )}
 
-      {/* Cambiar ejercicio en caliente */}
+      {/* Cambiar / añadir ejercicio en caliente */}
       <Dialog
-        open={swapFor !== null}
+        open={picker !== null}
         onOpenChange={(o) => {
-          if (!o) setSwapFor(null);
+          if (!o) closePicker();
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cambiar ejercicio</DialogTitle>
+            <DialogTitle>
+              {picker?.mode === "add" ? "Añadir ejercicio" : "Cambiar ejercicio"}
+            </DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
-            Reemplaza <b className="capitalize">{swapFor?.name}</b> por otro
-            (se actualiza la rutina).
+            {picker?.mode === "add" ? (
+              "Búscalo, tómale foto a la máquina o escribe su nombre. Se añade al final."
+            ) : (
+              <>
+                Reemplaza{" "}
+                <b className="capitalize">
+                  {picker?.mode === "swap" ? picker.name : ""}
+                </b>{" "}
+                por otro (se actualiza la rutina).
+              </>
+            )}
           </p>
 
           {/* Identificar con foto de la máquina */}
@@ -845,7 +959,7 @@ export function TrainClient({
               <button
                 key={i}
                 onClick={() =>
-                  applySwap({ name: r.name, gif_url: r.gif_url, target: r.target })
+                  applyPick({ name: r.name, gif_url: r.gif_url, target: r.target })
                 }
                 disabled={swapping}
                 className="flex w-full items-center gap-3 rounded-xl bg-secondary/40 p-2 text-left transition-colors hover:bg-secondary disabled:opacity-50"
@@ -869,7 +983,7 @@ export function TrainClient({
             ))}
             {swapQuery.trim() && (
               <button
-                onClick={() => applySwap({ name: swapQuery.trim() })}
+                onClick={() => applyPick({ name: swapQuery.trim() })}
                 disabled={swapping}
                 className="w-full rounded-xl border border-dashed border-border p-2.5 text-center text-xs text-muted-foreground hover:text-foreground"
               >

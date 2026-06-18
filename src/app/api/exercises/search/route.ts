@@ -20,8 +20,8 @@ export async function GET(request: Request) {
   if (!q.trim()) return NextResponse.json([]);
 
   const [edb, free] = await Promise.all([
-    searchExercises(q).catch(() => []),
-    searchFreeExercises(q).catch(() => []),
+    searchExercises(q, 18).catch(() => []),
+    searchFreeExercises(q, 18).catch(() => []),
   ]);
 
   // Mezcla: primero los GIF de ExerciseDB, luego las fotos; sin duplicados.

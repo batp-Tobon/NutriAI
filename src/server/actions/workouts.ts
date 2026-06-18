@@ -270,6 +270,93 @@ export async function swapExercise(
   return { ok: true };
 }
 
+/** Elimina un ejercicio de la rutina (también en pleno entrenamiento). */
+export async function removeExercise(
+  workoutId: string,
+  blockIndex: number,
+  exIndex: number,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+
+  const supabase = await createClient();
+  const { data: w } = await supabase
+    .from("workouts")
+    .select("plan")
+    .eq("id", workoutId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!w) return { ok: false, error: "Rutina no encontrada" };
+
+  const plan = (w.plan ?? []) as WorkoutBlock[];
+  if (!plan[blockIndex]?.exercises?.[exIndex]) {
+    return { ok: false, error: "Ejercicio no encontrado" };
+  }
+  // Quita el ejercicio. Conservamos el bloque (aunque quede vacío) para no
+  // desplazar los índices del resto durante la sesión.
+  plan[blockIndex].exercises.splice(exIndex, 1);
+
+  const { error } = await supabase
+    .from("workouts")
+    .update({ plan })
+    .eq("id", workoutId)
+    .eq("user_id", user.id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/plan");
+  return { ok: true };
+}
+
+/** Añade un ejercicio nuevo a la rutina (al final), incluso en pleno entrenamiento. */
+export async function addExerciseToWorkout(
+  workoutId: string,
+  ex: {
+    name: string;
+    gif_url?: string | null;
+    target?: string | null;
+    sets?: number;
+    reps?: string;
+    rest_sec?: number;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+  if (!ex.name?.trim()) return { ok: false, error: "Nombre vacío" };
+
+  const supabase = await createClient();
+  const { data: w } = await supabase
+    .from("workouts")
+    .select("plan")
+    .eq("id", workoutId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!w) return { ok: false, error: "Rutina no encontrada" };
+
+  const plan = (w.plan ?? []) as WorkoutBlock[];
+  if (plan.length === 0) plan.push({ block: "Principal", exercises: [] });
+
+  const exercise: WorkoutExercise = {
+    name: ex.name.trim(),
+    sets: ex.sets ?? 3,
+    reps: ex.reps ?? "10-12",
+    rest_sec: ex.rest_sec ?? 60,
+  };
+  if (ex.gif_url) exercise.gif_url = ex.gif_url;
+  if (ex.target) exercise.target = ex.target;
+  // Lo añadimos al último bloque para que aparezca al final.
+  plan[plan.length - 1].exercises.push(exercise);
+
+  const { error } = await supabase
+    .from("workouts")
+    .update({ plan })
+    .eq("id", workoutId)
+    .eq("user_id", user.id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/plan");
+  return { ok: true };
+}
+
 export async function deleteWorkout(id: string): Promise<{ ok: boolean }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false };

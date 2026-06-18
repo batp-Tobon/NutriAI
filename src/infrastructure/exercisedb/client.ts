@@ -226,27 +226,86 @@ export function parseExerciseQuery(query: string): {
   return { words, phrase, movement };
 }
 
-/** Busca ejercicios del catálogo; traduce el español al inglés del catálogo. */
+/** Mapea una palabra de zona muscular (ya en inglés) a un endpoint del catálogo. */
+const MUSCLE_ENDPOINT: Record<string, string> = {
+  chest: "/exercises/bodyPart/chest",
+  back: "/exercises/bodyPart/back",
+  leg: "/exercises/bodyPart/upper%20legs",
+  shoulder: "/exercises/bodyPart/shoulders",
+  biceps: "/exercises/target/biceps",
+  triceps: "/exercises/target/triceps",
+  glute: "/exercises/target/glutes",
+  calf: "/exercises/target/calves",
+};
+
+/**
+ * Busca ejercicios del catálogo (en inglés). Como el endpoint /name hace match
+ * de SUBCADENA contigua (y los nombres reales son largos, p. ej. "barbell
+ * incline bench press"), no basta con buscar la frase. En su lugar:
+ *   1) Traemos candidatos por palabras "ancla" (movimiento + zona muscular).
+ *   2) Puntuamos cada candidato por cuántas palabras de la consulta aparecen
+ *      en nombre+equipo+músculo y devolvemos los mejores.
+ * Así "press inclinado con barra" encuentra el press inclinado real.
+ */
 export async function searchExercises(
   query: string,
-  limit = 10,
+  limit = 12,
 ): Promise<ExercisePoolItem[]> {
   if (!isExerciseDBConfigured() || !query.trim()) return [];
   const words = translateToWords(query);
+  if (words.length === 0) return [];
   const { phrase, movement } = buildPhrase(words);
+  const areas = words.filter((w) => AREA.has(w));
 
-  // Intenta: frase ordenada → palabra de movimiento → consulta cruda.
-  const tries = [phrase, movement, query.toLowerCase().trim()].filter(
-    (t, i, a) => t && a.indexOf(t) === i,
+  // Anclas para el endpoint /name (palabras que aparecen en muchos nombres).
+  const nameAnchors = [movement, ...areas, ...words.filter((w) => !EQUIP.has(w))]
+    .filter((t, i, a) => t && a.indexOf(t) === i)
+    .slice(0, 2);
+
+  // Endpoints por músculo (dan mucha cobertura para "pecho", "espalda", …).
+  const muscleEndpoints = areas
+    .map((a) => MUSCLE_ENDPOINT[a])
+    .filter((e, i, arr): e is string => Boolean(e) && arr.indexOf(e) === i)
+    .slice(0, 2);
+
+  const paths = [
+    ...nameAnchors.map((a) => `/exercises/name/${encodeURIComponent(a)}`),
+    ...muscleEndpoints,
+  ];
+
+  const lists = await Promise.allSettled(
+    paths.map((p) => fetchList(p, 60)),
   );
-  for (const t of tries) {
-    const list = await fetchList(
-      `/exercises/name/${encodeURIComponent(t)}`,
-      15,
-    ).catch(() => [] as ExercisePoolItem[]);
-    if (list.length > 0) return list.slice(0, limit);
+  const candidates = new Map<string, ExercisePoolItem>();
+  for (const r of lists)
+    if (r.status === "fulfilled")
+      for (const it of r.value) candidates.set(it.name.toLowerCase(), it);
+
+  // Respaldo: si no hubo anclas útiles, intenta la frase/consulta tal cual.
+  if (candidates.size === 0) {
+    for (const t of [phrase, query.toLowerCase().trim()].filter(Boolean)) {
+      const list = await fetchList(
+        `/exercises/name/${encodeURIComponent(t)}`,
+        15,
+      ).catch(() => [] as ExercisePoolItem[]);
+      for (const it of list) candidates.set(it.name.toLowerCase(), it);
+      if (candidates.size > 0) break;
+    }
   }
-  return [];
+
+  // Puntúa por coincidencia de palabras en nombre+equipo+músculo.
+  const scored = [...candidates.values()]
+    .map((it) => {
+      const hay =
+        `${it.name} ${it.equipment} ${it.target} ${it.bodyPart}`.toLowerCase();
+      let score = words.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0);
+      if (movement && it.name.toLowerCase().includes(movement)) score += 1;
+      return { it, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.slice(0, limit).map((x) => x.it);
 }
 
 export async function fetchExercisePool(

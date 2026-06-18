@@ -51,14 +51,15 @@ export async function searchFreeExercises(
   const scored = ds
     .map((e) => {
       const name = e.name.toLowerCase();
-      const score = words.reduce((s, w) => s + (name.includes(w) ? 1 : 0), 0);
+      const muscles = (e.primaryMuscles ?? []).join(" ").toLowerCase();
+      const equip = (e.equipment ?? "").toLowerCase();
+      const hay = `${name} ${muscles} ${equip}`;
+      let score = words.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0);
+      // Prioriza (sin exigir) que el movimiento aparezca en el nombre.
+      if (movement && name.includes(movement)) score += 2;
       return { e, score };
     })
-    .filter(
-      (x) =>
-        x.score > 0 &&
-        (!movement || x.e.name.toLowerCase().includes(movement)),
-    )
+    .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
 
   return scored

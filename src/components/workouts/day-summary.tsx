@@ -99,7 +99,8 @@ export function WorkoutDaySummary({
 
               {hasPlan ? (
                 <div className="space-y-3">
-                  {w.plan.map((block, i) => (
+                  {w.plan.map((block, i) =>
+                    block.exercises.length === 0 ? null : (
                     <div key={i}>
                       <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
                         {block.block}
@@ -140,7 +141,8 @@ export function WorkoutDaySummary({
                         ))}
                       </div>
                     </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
