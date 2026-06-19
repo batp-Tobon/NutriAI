@@ -7,14 +7,6 @@ import type {
 
 export const APP_NAME = "NutriAI";
 
-export const NAV_ITEMS = [
-  { href: "/dashboard", label: "Inicio", icon: "Home" },
-  { href: "/log", label: "Comidas", icon: "UtensilsCrossed" },
-  { href: "/plan", label: "Entreno", icon: "Dumbbell" },
-  { href: "/progress", label: "Progreso", icon: "LineChart" },
-  { href: "/coach", label: "Coach", icon: "MessageCircle" },
-] as const;
-
 export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
   sedentary: "Sedentario",
   light: "Ligero (1-3 días/sem)",

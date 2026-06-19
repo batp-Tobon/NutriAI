@@ -80,11 +80,18 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  /* Safe-area para PWA en móvil (notch / home indicator) */
+  /* Safe-area para PWA en móvil (notch / isla dinámica / home indicator).
+     Requiere viewport-fit=cover (configurado en el layout raíz). */
   .pb-safe {
-    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
   }
   .pt-safe {
-    padding-top: env(safe-area-inset-top);
+    /* Pequeña base para que el header no quede pegado al borde sin notch */
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0.25rem);
+  }
+  /* Padding horizontal que respeta los notch laterales (apaisado) */
+  .px-safe {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
   }
 }
