@@ -309,6 +309,10 @@ export interface WorkoutExercise {
   gif_url?: string;
   target?: string;
   equipment?: string;
+  /** "reps" (series×reps, por defecto) o "time" (cardio medido en minutos). */
+  kind?: "reps" | "time";
+  /** Minutos objetivo cuando kind === "time" (cardio/caminadora). */
+  duration_min?: number;
 }
 export interface WorkoutBlock {
   block: string;

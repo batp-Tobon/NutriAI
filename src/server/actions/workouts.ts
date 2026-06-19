@@ -124,6 +124,8 @@ const manualSchema = z.object({
         gif_url: z.string().optional().nullable(),
         target: z.string().optional().nullable(),
         block: z.string().optional().nullable(),
+        kind: z.enum(["reps", "time"]).optional(),
+        duration_min: z.coerce.number().int().min(1).max(300).optional(),
       }),
     )
     .min(1, "Agrega al menos un ejercicio"),
@@ -161,6 +163,10 @@ export async function saveManualWorkout(
     };
     if (e.gif_url) exercise.gif_url = e.gif_url;
     if (e.target) exercise.target = e.target;
+    if (e.kind === "time") {
+      exercise.kind = "time";
+      exercise.duration_min = e.duration_min ?? 20;
+    }
     blk.exercises.push(exercise);
   }
 

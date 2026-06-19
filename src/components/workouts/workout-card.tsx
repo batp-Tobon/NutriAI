@@ -256,8 +256,11 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
                             </p>
                           )}
                           <p className="text-xs font-medium text-primary">
-                            {ex.sets} series × {ex.reps}
-                            {ex.rest_sec ? ` · ${ex.rest_sec}s desc.` : ""}
+                            {ex.kind === "time"
+                              ? `🏃 ${ex.duration_min ?? 20} min`
+                              : `${ex.sets} series × ${ex.reps}${
+                                  ex.rest_sec ? ` · ${ex.rest_sec}s desc.` : ""
+                                }`}
                           </p>
                         </div>
                         {isDone ? (

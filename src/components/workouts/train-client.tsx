@@ -18,6 +18,7 @@ import {
   Search,
   SkipForward,
   Sparkles,
+  Timer,
   Trash2,
   Trophy,
   X,
@@ -162,6 +163,13 @@ export function TrainClient({
     return r;
   });
   const [extra, setExtra] = useState<Record<string, number>>({});
+  // Minutos para ejercicios de cardio (kind === "time"), por ejercicio.
+  const [mins, setMins] = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {};
+    for (const e of exercises)
+      if (e.kind === "time") m[e.key] = String(e.duration_min ?? 20);
+    return m;
+  });
   const [logIds, setLogIds] = useState<Record<string, string>>({});
   const [bestMax, setBestMax] = useState<Record<string, number>>(() => {
     const b: Record<string, number> = {};
@@ -316,6 +324,13 @@ export function TrainClient({
 
   function toggleSet(e: (typeof exercises)[number], i: number) {
     const k = `${e.key}:${i}`;
+    // Cardio (tiempo): solo marcar/desmarcar; no se registra peso/series ni récords.
+    if (e.kind === "time") {
+      const nd = { ...doneMap, [k]: !doneMap[k] };
+      setDoneMap(nd);
+      persistAll({ doneMap: nd });
+      return;
+    }
     if (doneMap[k]) {
       // Deshacer: quitar marca y borrar el registro de esa serie
       const nd = { ...doneMap, [k]: false };
@@ -689,9 +704,15 @@ export function TrainClient({
                           {ex.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {count} × {ex.reps}
-                          {ex.rest_sec ? ` · descanso ${ex.rest_sec}s` : ""}
-                          {best != null && best > 0 ? ` · 🏆 ${best} kg` : ""}
+                          {ex.kind === "time" ? (
+                            <>🏃 Cardio · {ex.duration_min ?? mins[e.key]} min objetivo</>
+                          ) : (
+                            <>
+                              {count} × {ex.reps}
+                              {ex.rest_sec ? ` · descanso ${ex.rest_sec}s` : ""}
+                              {best != null && best > 0 ? ` · 🏆 ${best} kg` : ""}
+                            </>
+                          )}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center">
@@ -717,6 +738,46 @@ export function TrainClient({
                       </div>
                     </div>
 
+                    {e.kind === "time" ? (
+                      /* Cardio: minutos + un único check (sin series) */
+                      <div
+                        className={cn(
+                          "flex items-center gap-2 rounded-xl px-2 py-2",
+                          doneMap[`${e.key}:0`] ? "bg-primary/15" : "bg-secondary/40",
+                        )}
+                      >
+                        <Timer className="h-4 w-4 shrink-0 text-primary" />
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={mins[e.key] ?? ""}
+                          disabled={Boolean(doneMap[`${e.key}:0`])}
+                          onChange={(ev) =>
+                            setMins((m) => ({ ...m, [e.key]: ev.target.value }))
+                          }
+                          placeholder="min"
+                          className="h-9 w-20 rounded-lg border border-input bg-background px-2 text-center text-base font-semibold disabled:opacity-70"
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          minutos
+                        </span>
+                        <button
+                          onClick={() => toggleSet(e, 0)}
+                          aria-label={
+                            doneMap[`${e.key}:0`] ? "Desmarcar" : "Completar"
+                          }
+                          className={cn(
+                            "ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all",
+                            doneMap[`${e.key}:0`]
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-background text-muted-foreground hover:border-primary/60",
+                          )}
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
                     {/* Filas por serie: cada una con SU peso y reps */}
                     <div className="space-y-1.5">
                       {Array.from({ length: count }, (_, i) => {
@@ -804,6 +865,8 @@ export function TrainClient({
                         </button>
                       )}
                     </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               );

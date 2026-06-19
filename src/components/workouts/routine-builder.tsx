@@ -3,7 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Dumbbell, Loader2, Plus, Replace, Search, Trash2, X } from "lucide-react";
+import {
+  Dumbbell,
+  Loader2,
+  Plus,
+  Replace,
+  Search,
+  Timer,
+  Trash2,
+  X,
+} from "lucide-react";
 import { saveManualWorkout } from "@/server/actions/workouts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +38,21 @@ type Ex = {
   gif_url?: string;
   target?: string;
   block: string;
+  kind?: "reps" | "time";
+  duration_min?: string;
 };
+
+/** Actividades de cardio frecuentes (se miden en minutos, no en series). */
+const CARDIO_PRESETS = [
+  "Caminadora",
+  "Trote",
+  "Caminar",
+  "Bicicleta",
+  "Elíptica",
+  "Escaladora",
+  "Remo",
+  "Saltar lazo",
+];
 type SearchResult = {
   name: string;
   gif_url: string;
@@ -70,6 +93,8 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
         gif_url: e.gif_url,
         target: e.target,
         block: b.block || "Principal",
+        kind: e.kind ?? "reps",
+        duration_min: e.duration_min ? String(e.duration_min) : "20",
       })),
     ),
   );
@@ -83,8 +108,23 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
   function addBlank() {
     setExercises((x) => [
       ...x,
-      { name: "", sets: "4", reps: "10", rest_sec: "60", block: "Principal" },
+      { name: "", sets: "4", reps: "10", rest_sec: "60", block: "Principal", kind: "reps" },
     ]);
+  }
+  function addCardio(name: string) {
+    setExercises((x) => [
+      ...x,
+      {
+        name,
+        sets: "1",
+        reps: "—",
+        rest_sec: "0",
+        block: "Cardio",
+        kind: "time",
+        duration_min: "20",
+      },
+    ]);
+    toast.success(`${name} añadido (cardio)`);
   }
   function addFromCatalog(r: SearchResult) {
     if (swapIndex !== null) {
@@ -170,6 +210,9 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
           gif_url: e.gif_url,
           target: e.target,
           block: e.block,
+          kind: e.kind ?? "reps",
+          duration_min:
+            e.kind === "time" ? Number(e.duration_min) || 20 : undefined,
         })),
       });
       if (!res.ok) {
@@ -324,6 +367,27 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
         </CardContent>
       </Card>
 
+      {/* Cardio por minutos (no series) */}
+      <Card>
+        <CardContent className="space-y-2 pt-5">
+          <Label className="flex items-center gap-1.5">
+            <Timer className="h-4 w-4 text-primary" /> Cardio (se mide en minutos)
+          </Label>
+          <div className="flex flex-wrap gap-2">
+            {CARDIO_PRESETS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => addCardio(c)}
+                className="rounded-full border border-border bg-secondary/40 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/60 hover:text-primary"
+              >
+                + {c}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Lista de ejercicios */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -355,7 +419,11 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
                   />
                 ) : (
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
-                    <Dumbbell className="h-5 w-5" />
+                    {ex.kind === "time" ? (
+                      <Timer className="h-5 w-5" />
+                    ) : (
+                      <Dumbbell className="h-5 w-5" />
+                    )}
                   </div>
                 )}
                 <Input
@@ -383,32 +451,53 @@ export function RoutineBuilder({ initial }: { initial?: Workout | null }) {
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <MiniField label="Series">
-                  <Input
-                    type="number"
-                    value={ex.sets}
-                    onChange={(e) => updateEx(i, "sets", e.target.value)}
-                    className="h-9"
-                  />
-                </MiniField>
-                <MiniField label="Reps">
-                  <Input
-                    value={ex.reps}
-                    onChange={(e) => updateEx(i, "reps", e.target.value)}
-                    placeholder="8-10"
-                    className="h-9"
-                  />
-                </MiniField>
-                <MiniField label="Descanso (s)">
-                  <Input
-                    type="number"
-                    value={ex.rest_sec}
-                    onChange={(e) => updateEx(i, "rest_sec", e.target.value)}
-                    className="h-9"
-                  />
-                </MiniField>
-              </div>
+              {ex.kind === "time" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <MiniField label="Minutos">
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      value={ex.duration_min ?? "20"}
+                      onChange={(e) =>
+                        updateEx(i, "duration_min", e.target.value)
+                      }
+                      className="h-9"
+                    />
+                  </MiniField>
+                  <div className="flex items-end">
+                    <p className="pb-2 text-[11px] text-muted-foreground">
+                      Cardio · se mide por tiempo
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  <MiniField label="Series">
+                    <Input
+                      type="number"
+                      value={ex.sets}
+                      onChange={(e) => updateEx(i, "sets", e.target.value)}
+                      className="h-9"
+                    />
+                  </MiniField>
+                  <MiniField label="Reps">
+                    <Input
+                      value={ex.reps}
+                      onChange={(e) => updateEx(i, "reps", e.target.value)}
+                      placeholder="8-10"
+                      className="h-9"
+                    />
+                  </MiniField>
+                  <MiniField label="Descanso (s)">
+                    <Input
+                      type="number"
+                      value={ex.rest_sec}
+                      onChange={(e) => updateEx(i, "rest_sec", e.target.value)}
+                      className="h-9"
+                    />
+                  </MiniField>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

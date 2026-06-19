@@ -135,7 +135,9 @@ export function WorkoutDaySummary({
                               )}
                             </div>
                             <span className="shrink-0 text-xs font-medium text-muted-foreground">
-                              {ex.sets}×{ex.reps}
+                              {ex.kind === "time"
+                                ? `${ex.duration_min ?? 20} min`
+                                : `${ex.sets}×${ex.reps}`}
                             </span>
                           </div>
                         ))}
