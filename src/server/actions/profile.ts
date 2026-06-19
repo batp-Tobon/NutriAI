@@ -84,6 +84,66 @@ export async function saveProfile(
   return { ok: true };
 }
 
+/** Cambia el objetivo y recalcula los objetivos diarios de calorías y macros. */
+export async function setGoal(
+  goal: "lose_fat" | "maintain" | "gain_muscle",
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+  if (!["lose_fat", "maintain", "gain_muscle"].includes(goal)) {
+    return { ok: false, error: "Objetivo inválido" };
+  }
+
+  const supabase = await createClient();
+  const { data: p } = await supabase
+    .from("profiles")
+    .select("sex, age, height_cm, current_weight_kg, activity_level")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const patch: {
+    goal: "lose_fat" | "maintain" | "gain_muscle";
+    daily_calorie_target?: number;
+    daily_protein_target?: number;
+    daily_carbs_target?: number;
+    daily_fat_target?: number;
+  } = { goal };
+
+  // Si hay datos suficientes, recalcula los objetivos diarios.
+  if (
+    p?.sex &&
+    p.age != null &&
+    p.height_cm != null &&
+    p.current_weight_kg != null &&
+    p.activity_level
+  ) {
+    const t = calcDailyTargets({
+      sex: p.sex,
+      age: p.age,
+      heightCm: p.height_cm,
+      weightKg: p.current_weight_kg,
+      activityLevel: p.activity_level,
+      goal,
+    });
+    patch.daily_calorie_target = t.kcal;
+    patch.daily_protein_target = t.protein;
+    patch.daily_carbs_target = t.carbs;
+    patch.daily_fat_target = t.fat;
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update(patch)
+    .eq("id", user.id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/deficit");
+  revalidatePath("/dashboard");
+  revalidatePath("/log");
+  revalidatePath("/profile");
+  return { ok: true };
+}
+
 /** Configura (o quita) el día del mes en que pagas tu gym. */
 export async function setGymPaymentDay(
   day: number | null,

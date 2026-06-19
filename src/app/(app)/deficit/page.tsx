@@ -27,6 +27,7 @@ import {
   type StatusLevel,
 } from "@/core/application/nutrition";
 import { waterGoalMl } from "@/core/application/insights";
+import { GoalSelector } from "@/components/dashboard/goal-selector";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GOAL_LABELS } from "@/lib/constants";
@@ -272,6 +273,13 @@ export default async function DeficitPage() {
               tone="burn"
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* OBJETIVO */}
+      <Card>
+        <CardContent className="p-4">
+          <GoalSelector current={goal} />
         </CardContent>
       </Card>
 
