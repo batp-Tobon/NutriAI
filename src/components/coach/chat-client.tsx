@@ -14,7 +14,13 @@ const SUGGESTIONS = [
   "¿Voy bien para mi objetivo?",
 ];
 
-export function ChatClient({ initial }: { initial: ChatMsg[] }) {
+export function ChatClient({
+  initial,
+  className,
+}: {
+  initial: ChatMsg[];
+  className?: string;
+}) {
   const [messages, setMessages] = useState<ChatMsg[]>(
     initial.length > 0
       ? initial
@@ -59,7 +65,7 @@ export function ChatClient({ initial }: { initial: ChatMsg[] }) {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-9rem)] flex-col">
+    <div className={cn("flex flex-col", className ?? "h-[calc(100dvh-9rem)]")}>
       <div className="flex-1 space-y-3 overflow-y-auto no-scrollbar pb-2">
         {messages.map((m, i) => (
           <div

@@ -6,7 +6,6 @@ import {
   Dumbbell,
   Home,
   LineChart,
-  MessageCircle,
   TrendingDown,
   UtensilsCrossed,
 } from "lucide-react";
@@ -18,7 +17,6 @@ const items = [
   { href: "/deficit", label: "Déficit", icon: TrendingDown },
   { href: "/plan", label: "Entreno", icon: Dumbbell },
   { href: "/progress", label: "Progreso", icon: LineChart },
-  { href: "/coach", label: "Coach", icon: MessageCircle },
 ];
 
 export function BottomNav() {
