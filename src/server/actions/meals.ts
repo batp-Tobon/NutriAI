@@ -79,6 +79,87 @@ export async function saveMeal(
   return { ok: true };
 }
 
+const updateSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  items: z.array(itemSchema).min(1),
+});
+
+export type UpdateMealInput = z.input<typeof updateSchema>;
+
+/** Edita una comida ya registrada: nombre + items (reemplaza y recalcula totales). */
+export async function updateMeal(
+  input: UpdateMealInput,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+
+  const parsed = updateSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const v = parsed.data;
+
+  const supabase = await createClient();
+  // Verifica propiedad antes de tocar nada.
+  const { data: meal } = await supabase
+    .from("meals")
+    .select("id")
+    .eq("id", v.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!meal) return { ok: false, error: "Comida no encontrada" };
+
+  const totals = {
+    kcal: v.items.reduce((s, i) => s + i.kcal, 0),
+    protein: v.items.reduce((s, i) => s + i.protein, 0),
+    carbs: v.items.reduce((s, i) => s + i.carbs, 0),
+    fat: v.items.reduce((s, i) => s + i.fat, 0),
+  };
+
+  try {
+    // Reemplaza los items por los editados.
+    const { error: delErr } = await supabase
+      .from("meal_items")
+      .delete()
+      .eq("meal_id", v.id);
+    if (delErr) throw new Error(delErr.message);
+
+    const { error: insErr } = await supabase.from("meal_items").insert(
+      v.items.map((i) => ({
+        meal_id: v.id,
+        food_id: null,
+        name: i.name,
+        grams: i.grams,
+        kcal: i.kcal,
+        protein: i.protein,
+        carbs: i.carbs,
+        fat: i.fat,
+      })),
+    );
+    if (insErr) throw new Error(insErr.message);
+
+    const { error: upErr } = await supabase
+      .from("meals")
+      .update({
+        name: v.name,
+        total_kcal: totals.kcal,
+        total_protein: totals.protein,
+        total_carbs: totals.carbs,
+        total_fat: totals.fat,
+      })
+      .eq("id", v.id)
+      .eq("user_id", user.id);
+    if (upErr) throw new Error(upErr.message);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al editar" };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/log");
+  return { ok: true };
+}
+
 /** Busca alimentos (sin IA): base local + Open Food Facts, en español. */
 export async function searchFoods(query: string): Promise<FoodSearchItem[]> {
   const user = await getCurrentUser();

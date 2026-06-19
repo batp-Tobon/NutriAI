@@ -509,9 +509,22 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
                 className="h-9 flex-1"
               />
               {confidence != null && (
-                <Badge className="ml-2">{Math.round(confidence * 100)}%</Badge>
+                <Badge
+                  className="ml-2"
+                  variant={confidence >= 0.66 ? "default" : "secondary"}
+                >
+                  {confidence >= 0.66 ? "Alta" : confidence >= 0.4 ? "Media" : "Baja"}{" "}
+                  {Math.round(confidence * 100)}%
+                </Badge>
               )}
             </div>
+            {confidence != null && (
+              <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
+                ⚠️ La IA estima; <b>revisa cada alimento y sus gramos/calorías</b>{" "}
+                antes de guardar. Toca el lápiz para corregir macros o añade lo
+                que falte.
+              </p>
+            )}
 
             <div className="space-y-2">
               {items.map((it, idx) => (
