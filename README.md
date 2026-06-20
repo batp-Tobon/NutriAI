@@ -60,7 +60,8 @@ de negocio (`core/application`) es **pura** (sin I/O) y por tanto trivial de pro
    **editables y revisables** antes de guardar (corrige nombre/gramos/macros,
    añade o quita alimentos). Nunca devuelve 0 kcal en alimentos reales.
 5. **Comidas / Historial** — registro del día y de **días anteriores**, con
-   edición y borrado (con confirmación) por comida.
+   edición y borrado (con confirmación) por comida. Incluye **escáner de código
+   de barras** (Open Food Facts, sin IA) y búsqueda por nombre.
 6. **Déficit calórico** — balance del día (BMR/TDEE Mifflin-St Jeor), desglose,
    selector de objetivo (perder grasa / mantener / ganar músculo), enfoque de
    **recomposición** (déficit suave) y estado de comida, agua, sueño y entreno.

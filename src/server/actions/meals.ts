@@ -7,7 +7,10 @@ import {
   createFoodRepository,
   createMealRepository,
 } from "@/infrastructure/supabase/repositories";
-import { searchOpenFoodFacts } from "@/infrastructure/openfoodfacts/client";
+import {
+  getProductByBarcode,
+  searchOpenFoodFacts,
+} from "@/infrastructure/openfoodfacts/client";
 import type { FoodSearchItem } from "@/core/domain/entities";
 
 const itemSchema = z.object({
@@ -192,6 +195,21 @@ export async function searchFoods(query: string): Promise<FoodSearchItem[]> {
     merged.push(it);
   }
   return merged.slice(0, 16);
+}
+
+/** Busca un producto por código de barras (sin IA). Devuelve el alimento o null. */
+export async function lookupBarcode(
+  code: string,
+): Promise<{ ok: boolean; item?: FoodSearchItem; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+  if (!code.trim()) return { ok: false, error: "Código vacío" };
+
+  const item = await getProductByBarcode(code);
+  if (!item) {
+    return { ok: false, error: "Producto no encontrado en Open Food Facts." };
+  }
+  return { ok: true, item };
 }
 
 export async function deleteMeal(id: string): Promise<{ ok: boolean }> {

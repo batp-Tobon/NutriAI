@@ -5,12 +5,55 @@ interface OFFProduct {
   code?: string;
   product_name?: string;
   product_name_es?: string;
+  brands?: string;
   nutriments?: Record<string, number | string | undefined>;
 }
 
 function num(v: number | string | undefined): number {
   const n = typeof v === "string" ? parseFloat(v) : v;
   return Number.isFinite(n as number) ? Math.round(((n as number) + Number.EPSILON) * 10) / 10 : 0;
+}
+
+/**
+ * Busca un producto por su código de barras (EAN/UPC) en Open Food Facts.
+ * Devuelve sus macros por 100 g o `null` si no existe / no tiene calorías.
+ */
+export async function getProductByBarcode(
+  code: string,
+): Promise<FoodSearchItem | null> {
+  const clean = code.replace(/\D/g, "");
+  if (!clean) return null;
+
+  try {
+    const res = await fetch(
+      `https://world.openfoodfacts.org/api/v2/product/${clean}.json?fields=code,product_name,product_name_es,brands,nutriments`,
+      {
+        headers: { "User-Agent": "NutriAI/1.0 (nutrition app)" },
+        next: { revalidate: 86400 },
+      },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { status?: number; product?: OFFProduct };
+    const p = data.product;
+    if (data.status !== 1 || !p) return null;
+
+    const base = (p.product_name_es || p.product_name || "").trim();
+    const brand = (p.brands || "").split(",")[0]?.trim();
+    const name = [brand, base].filter(Boolean).join(" — ") || base;
+    const kcal = num(p.nutriments?.["energy-kcal_100g"]);
+    if (!name || kcal <= 0) return null;
+
+    return {
+      id: `off-${p.code ?? clean}`,
+      name,
+      kcal_per_100g: kcal,
+      protein_per_100g: num(p.nutriments?.["proteins_100g"]),
+      carbs_per_100g: num(p.nutriments?.["carbohydrates_100g"]),
+      fat_per_100g: num(p.nutriments?.["fat_100g"]),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**

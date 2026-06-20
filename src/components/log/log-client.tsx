@@ -10,13 +10,21 @@ import {
   Lock,
   Pencil,
   Plus,
+  ScanBarcode,
   Search,
   Sparkles,
   Trash2,
   Type,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { createClient } from "@/infrastructure/supabase/client";
-import { saveMeal, searchFoods } from "@/server/actions/meals";
+import { lookupBarcode, saveMeal, searchFoods } from "@/server/actions/meals";
+
+// Carga diferida: la librería de escaneo (ZXing) solo se descarga al usarla.
+const BarcodeScanner = dynamic(
+  () => import("@/components/log/barcode-scanner").then((m) => m.BarcodeScanner),
+  { ssr: false },
+);
 import { macrosForGrams } from "@/core/application/nutrition";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -109,6 +117,10 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
   const [foodResults, setFoodResults] = useState<FoodSearchItem[]>([]);
   const [searchingFood, setSearchingFood] = useState(false);
 
+  // Escáner de código de barras
+  const [scanning, setScanning] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+
   // Edición del resultado (IA o manual): macros por ítem + añadir componentes
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [addQuery, setAddQuery] = useState("");
@@ -192,6 +204,25 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
     ]);
     if (!name) setName("Comida");
     toast.success("Alimento añadido");
+  }
+
+  /** Llega un código del escáner → busca el producto y lo añade. */
+  async function onBarcode(code: string) {
+    setScanning(false);
+    setLookingUp(true);
+    try {
+      const res = await lookupBarcode(code);
+      if (!res.ok || !res.item) {
+        toast.error(res.error ?? "Producto no encontrado. Búscalo por nombre.");
+        return;
+      }
+      addFood(res.item);
+      setName(res.item.name);
+    } catch {
+      toast.error("No se pudo consultar el producto.");
+    } finally {
+      setLookingUp(false);
+    }
   }
 
   function updateGrams(idx: number, grams: number) {
@@ -463,6 +494,25 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
       {tab === "manual" && (
         <Card>
           <CardContent className="space-y-3 pt-5">
+            {/* Escanear código de barras (sin IA, disponible en todos los planes) */}
+            <Button
+              variant="default"
+              className="w-full"
+              onClick={() => setScanning(true)}
+              disabled={lookingUp}
+            >
+              {lookingUp ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ScanBarcode className="h-4 w-4" />
+              )}
+              {lookingUp ? "Buscando producto…" : "Escanear código de barras"}
+            </Button>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span className="h-px flex-1 bg-border" /> o busca por nombre
+              <span className="h-px flex-1 bg-border" />
+            </div>
+
             <div className="flex gap-2">
               <Input
                 value={foodQuery}
@@ -666,6 +716,14 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Escáner de código de barras (pantalla completa) */}
+      {scanning && (
+        <BarcodeScanner
+          onDetected={onBarcode}
+          onClose={() => setScanning(false)}
+        />
       )}
     </div>
   );
