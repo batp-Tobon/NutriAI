@@ -4,7 +4,15 @@ import { env, isExerciseDBConfigured } from "@/lib/env";
 export const runtime = "nodejs";
 
 // Sólo proxeamos imágenes desde estos hosts (evita open-proxy / SSRF).
-const ALLOWED_SUFFIXES = ["exercisedb.io", "rapidapi.com", "jsdelivr.net"];
+const ALLOWED_SUFFIXES = [
+  "exercisedb.io",
+  "rapidapi.com",
+  "jsdelivr.net", // Free Exercise DB
+  "wger.de", // wger (open source)
+];
+
+/** Hosts a los que SÍ debemos enviar la RapidAPI key. */
+const RAPIDAPI_HOSTS = ["exercisedb.io", "rapidapi.com"];
 
 /**
  * Proxy de GIFs de ExerciseDB: descarga la imagen en el servidor (añadiendo la
@@ -29,14 +37,19 @@ export async function GET(request: Request) {
     );
   if (!ok) return new NextResponse("forbidden host", { status: 403 });
 
+  const isRapidApi = RAPIDAPI_HOSTS.some(
+    (h) => target.hostname === h || target.hostname.endsWith("." + h),
+  );
+
   try {
     const upstream = await fetch(target.toString(), {
-      headers: isExerciseDBConfigured()
-        ? {
-            "X-RapidAPI-Key": env.rapidApiKey,
-            "X-RapidAPI-Host": "exercisedb.p.rapidapi.com",
-          }
-        : {},
+      headers:
+        isRapidApi && isExerciseDBConfigured()
+          ? {
+              "X-RapidAPI-Key": env.rapidApiKey,
+              "X-RapidAPI-Host": "exercisedb.p.rapidapi.com",
+            }
+          : {},
       next: { revalidate: 86400 },
     });
     if (!upstream.ok) return new NextResponse("not found", { status: 404 });

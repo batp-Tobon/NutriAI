@@ -31,7 +31,8 @@ src/
 │   ├── supabase/              # Clientes (ssr/admin) + repositorios + middleware
 │   ├── openai/                # Vision de comida y ejercicio, coach, rutinas
 │   ├── exercisedb/            # Catálogo de ejercicios con GIF (RapidAPI)
-│   ├── freedb/                # Free Exercise DB (fotos, 2ª fuente)
+│   ├── wger/                  # wger open source (español nativo + imágenes)
+│   ├── freedb/                # Free Exercise DB (fotos, 3ª fuente)
 │   └── openfoodfacts/         # Búsqueda de alimentos sin IA
 ├── server/actions/            # Server Actions (casos de uso de escritura)
 ├── app/                       # Rutas (App Router)
