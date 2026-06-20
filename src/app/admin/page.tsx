@@ -1,6 +1,6 @@
-import { Activity, Dumbbell, UtensilsCrossed, Users } from "lucide-react";
+import { Activity, Dumbbell, Sparkles, UtensilsCrossed, Users } from "lucide-react";
 import { createAdminClient } from "@/infrastructure/supabase/admin";
-import { isSupabaseConfigured } from "@/lib/env";
+import { env, isSupabaseConfigured } from "@/lib/env";
 import { getAccess } from "@/core/application/subscription";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +53,24 @@ export default async function AdminPage() {
     .order("created_at", { ascending: false })
     .limit(50);
 
+  // Consumo por usuario (comidas registradas en los últimos 30 días): una sola
+  // consulta para evitar N+1; se agrupa en memoria.
+  const since30 = new Date(Date.now() - 30 * 864e5).toISOString();
+  const { data: recentMeals } = await admin
+    .from("meals")
+    .select("user_id, consumed_at")
+    .gte("consumed_at", since30);
+
+  const mealStats = new Map<string, { count: number; last: string }>();
+  for (const m of recentMeals ?? []) {
+    const cur = mealStats.get(m.user_id);
+    if (!cur) mealStats.set(m.user_id, { count: 1, last: m.consumed_at });
+    else {
+      cur.count += 1;
+      if (m.consumed_at > cur.last) cur.last = m.consumed_at;
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -102,6 +120,12 @@ export default async function AdminPage() {
                     startsAt={u.subscription_started_at}
                     endsAt={u.subscribed_until}
                     trialEndsAt={u.trial_ends_at}
+                  />
+
+                  <ConsumptionCell
+                    meals={mealStats.get(u.id)}
+                    aiUses={u.ai_uses ?? 0}
+                    aiEnabled={access.aiEnabled}
                   />
 
                   <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -207,6 +231,34 @@ function PeriodCell({
     <span className="text-xs text-muted-foreground">
       {endsAt ? `Venció ${fmtDate(endsAt)}` : "—"}
     </span>
+  );
+}
+
+function ConsumptionCell({
+  meals,
+  aiUses,
+  aiEnabled,
+}: {
+  meals?: { count: number; last: string };
+  aiUses: number;
+  aiEnabled: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-secondary/40 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+      <span className="flex items-center gap-1">
+        <UtensilsCrossed className="h-3 w-3" />
+        <b className="text-foreground">{meals?.count ?? 0}</b> comidas (30d)
+      </span>
+      {meals?.last && (
+        <span>· última {fmtDate(meals.last)}</span>
+      )}
+      {aiEnabled && (
+        <span className="flex items-center gap-1">
+          <Sparkles className="h-3 w-3 text-primary" /> IA{" "}
+          <b className="text-foreground">{aiUses}</b>/{env.aiMonthlyLimit}
+        </span>
+      )}
+    </div>
   );
 }
 

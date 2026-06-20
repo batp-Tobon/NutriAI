@@ -1,9 +1,11 @@
 import Link from "next/link";
 import {
+  ChevronRight,
   CreditCard,
   Flame,
   ShieldCheck,
-  Sparkles,
+  TrendingDown,
+  TrendingUp,
   UtensilsCrossed,
 } from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
@@ -11,10 +13,14 @@ import {
   createMealRepository,
   createProgressRepository,
 } from "@/infrastructure/supabase/repositories";
-import { caloriesBurned, sumMacros } from "@/core/application/nutrition";
+import {
+  caloriesBurned,
+  calcDeficit,
+  energyStatus,
+  sumMacros,
+} from "@/core/application/nutrition";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { MacroRing } from "@/components/dashboard/macro-ring";
 import { SleepLogger } from "@/components/dashboard/sleep-logger";
@@ -107,6 +113,29 @@ export default async function DashboardPage() {
 
   const isAdmin = env.adminEmails.includes((user!.email ?? "").toLowerCase());
   const access = getAccess(profile, isAdmin);
+
+  // Déficit de hoy (si el perfil tiene los datos para estimar el metabolismo)
+  const deficitReady =
+    profile?.sex != null &&
+    profile?.age != null &&
+    profile?.height_cm != null &&
+    weight != null &&
+    Number(weight) > 0 &&
+    profile?.activity_level != null;
+  const deficit = deficitReady
+    ? calcDeficit({
+        sex: profile.sex!,
+        age: profile.age!,
+        heightCm: profile.height_cm!,
+        weightKg: Number(weight),
+        activityLevel: profile.activity_level!,
+        goal: profile.goal ?? "maintain",
+        consumedKcal: consumed.kcal,
+        exerciseKcal: burned,
+        targetKcal: profile.daily_calorie_target,
+      })
+    : null;
+  const deficitStatus = deficit ? energyStatus(deficit) : null;
 
   // Recordatorio de pago del gym (visible 2 días antes y el día del pago)
   let gymDue: { day: number; isToday: boolean } | null = null;
@@ -257,22 +286,74 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Recomendación IA */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="pt-5">
-          <Badge className="mb-2 gap-1">
-            <Sparkles className="h-3 w-3" /> Recomendación IA
-          </Badge>
-          <h3 className="font-semibold">Tu coach personal</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pregúntale a NutriAI Coach cómo ajustar tus comidas y entrenamientos
-            según tu objetivo de hoy.
-          </p>
-          <Button asChild className="mt-3 w-full">
-            <Link href="/coach">Hablar con el Coach</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Déficit de hoy (reemplaza el CTA del coach; el coach es el botón flotante) */}
+      {deficit && deficitStatus ? (
+        <Link href="/deficit" className="block">
+          <Card
+            className={
+              deficit.inDeficit
+                ? "border-emerald-500/40 transition-colors hover:border-emerald-500/70"
+                : "border-amber-500/40 transition-colors hover:border-amber-500/70"
+            }
+          >
+            <CardContent className="pt-5">
+              <div className="flex items-center justify-between">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                  {deficit.inDeficit ? (
+                    <TrendingDown className="h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <TrendingUp className="h-4 w-4 text-amber-500" />
+                  )}
+                  Déficit de hoy
+                </h3>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p
+                className={
+                  deficit.inDeficit
+                    ? "mt-1 text-3xl font-extrabold tabular-nums text-emerald-500"
+                    : "mt-1 text-3xl font-extrabold tabular-nums text-amber-500"
+                }
+              >
+                {deficit.balance > 0 ? "+" : ""}
+                {deficit.balance}{" "}
+                <span className="text-sm font-bold">kcal</span>
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {deficitStatus.message}
+              </p>
+              <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+                <span>
+                  Mantenimiento{" "}
+                  <b className="text-foreground">{deficit.tdee}</b>
+                </span>
+                <span>
+                  Gasto hoy{" "}
+                  <b className="text-foreground">{deficit.expenditure}</b>
+                </span>
+                <span className="text-primary">Ver análisis →</span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      ) : (
+        <Link href="/deficit" className="block">
+          <Card className="border-primary/30 bg-primary/5 transition-colors hover:border-primary/60">
+            <CardContent className="flex items-center gap-3 pt-5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <TrendingDown className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold leading-tight">Tu déficit calórico</p>
+                <p className="text-xs text-muted-foreground">
+                  Completa tu perfil para ver tu balance y proyección.
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       <Button asChild variant="secondary" className="w-full">
         <Link href="/log">
