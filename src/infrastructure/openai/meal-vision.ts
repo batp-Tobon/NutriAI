@@ -20,27 +20,43 @@ const analysisSchema = z.object({
 
 export type MealAnalysis = z.infer<typeof analysisSchema>;
 
-const SYSTEM_PROMPT = `Eres un nutricionista experto que analiza comidas a partir de fotos o texto.
-Devuelve SIEMPRE un JSON válido con esta forma exacta:
+const SYSTEM_PROMPT = `Eres un nutricionista experto en cocina latinoamericana y colombiana que
+analiza comidas a partir de fotos o texto. Devuelve SIEMPRE un JSON válido con esta forma exacta:
 {
   "name": "nombre corto del plato",
   "items": [
-    { "name": "alimento", "grams": number, "kcal": number, "protein": number, "carbs": number, "fat": number }
+    { "name": "ingrediente", "grams": number, "kcal": number, "protein": number, "carbs": number, "fat": number }
   ],
   "confidence": number  // 0..1, qué tan seguro estás de la estimación
 }
 
 REGLAS OBLIGATORIAS:
-- Identifica CADA alimento visible y estima sus gramos de forma realista.
-- Los macros y kcal son los TOTALES para los gramos indicados (NO por 100 g).
-- TODO alimento real tiene energía: las kcal de un alimento comestible SIEMPRE son > 0.
-  Nunca devuelvas 0 kcal para chocolate, pan, arroz, carne, fruta, bebidas azucaradas, etc.
-- Usa densidades energéticas estándar como referencia (kcal por 100 g):
-  chocolate ~545, chocolate con leche ~535, galletas ~480, pan ~265, arroz cocido ~130,
-  pasta cocida ~155, pollo ~165, carne de res ~250, huevo ~155, queso ~350, aguacate ~160,
-  manzana ~52, banano ~89, papas fritas ~312, pizza ~266, gaseosa ~42, arroz frito ~190.
-- Coherencia: kcal ≈ 4·proteína + 4·carbohidratos + 9·grasa (±10%). Ajusta para que cuadre.
-- Si dudas del tamaño de la porción, da tu MEJOR estimación y baja "confidence"; nunca pongas 0.
+- DESCOMPÓN el plato en sus INGREDIENTES principales: cada ingrediente es un item con SUS gramos.
+  Un plato preparado NO es un solo item. (Ej.: changua = huevos + leche + pan/calados + agua/cebolla/cilantro).
+- RESPETA las cantidades que indique el usuario. "5 huevos" = 5 huevos (~50 g c/u = 250 g de huevo).
+  "una taza de arroz" ≈ 150-200 g · "un vaso de leche" ≈ 200-250 g · "una arepa" ≈ 90-120 g ·
+  "una cucharada de aceite" ≈ 14 g · "una porción/plato" = ración real servida.
+- ESTIMA la porción REAL servida. NUNCA uses 100 g por defecto. Un plato o tazón completo suele
+  pesar 350-700 g en total (sumando ingredientes). Sé generoso y realista, no minimices.
+- Los macros y kcal son los TOTALES para los gramos de ESE item (NO por 100 g).
+- TODO alimento real tiene energía: las kcal SIEMPRE son > 0. Nunca 0 para pan, arroz, huevo, etc.
+- Densidades de referencia (kcal/100 g): huevo ~155, leche entera ~62, pan ~265, arroz cocido ~130,
+  pasta cocida ~155, pollo ~165, carne ~250, queso ~350, aguacate ~160, arepa ~220, frijoles ~130,
+  aceite ~884, azúcar ~400, chocolate ~545, banano ~89, papa cocida ~85, papas fritas ~312.
+- Coherencia: kcal ≈ 4·proteína + 4·carbohidratos + 9·grasa (±10%). Ajusta hasta que cuadre.
+- Si dudas del tamaño, da tu MEJOR estimación y baja "confidence"; nunca pongas 0.
+
+EJEMPLO. Entrada: "changua tradicional con 5 huevos y pan". Salida:
+{
+  "name": "Changua con huevos",
+  "items": [
+    { "name": "Huevos (5)", "grams": 250, "kcal": 360, "protein": 32, "carbs": 2, "fat": 25 },
+    { "name": "Leche entera", "grams": 200, "kcal": 124, "protein": 6.4, "carbs": 9.6, "fat": 6.6 },
+    { "name": "Pan / calados", "grams": 50, "kcal": 150, "protein": 5, "carbs": 27, "fat": 2 }
+  ],
+  "confidence": 0.6
+}
+
 No incluyas texto fuera del JSON.`;
 
 /**
@@ -55,8 +71,8 @@ export async function analyzeMeal(input: {
   const hasImage = Boolean(input.imageDataUrl);
 
   const userText = input.description
-    ? `Analiza esta comida. Descripción del usuario: "${input.description}".`
-    : "Analiza la comida de la imagen.";
+    ? `Analiza esta comida y descomponla en ingredientes. Descripción del usuario: "${input.description}". Respeta las cantidades que menciona.`
+    : "Analiza la comida de la imagen y descomponla en sus ingredientes con porciones realistas.";
 
   const userContent: OpenAIUserContent = hasImage
     ? [
@@ -65,10 +81,12 @@ export async function analyzeMeal(input: {
       ]
     : userText;
 
+  // Usamos el modelo fuerte (visión) también para texto: el análisis nutricional
+  // requiere más precisión que el modelo "mini".
   const completion = await openai.chat.completions.create({
-    model: hasImage ? env.openaiVisionModel : env.openaiModel,
+    model: env.openaiVisionModel,
     response_format: { type: "json_object" },
-    max_tokens: 900,
+    max_tokens: 1200,
     temperature: 0.2,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
