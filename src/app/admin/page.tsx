@@ -1,5 +1,6 @@
 import {
   Activity,
+  Clock,
   Dumbbell,
   DollarSign,
   Sparkles,
@@ -16,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { ActivateButton } from "@/components/admin/activate-button";
 import { DeleteUserButton } from "@/components/admin/delete-user-button";
 import { AdminUserDialog } from "@/components/admin/admin-user-dialog";
+import { PaymentReview } from "@/components/admin/payment-review";
 
 export const metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -89,14 +91,27 @@ export default async function AdminPage() {
 
   const { data: payRows, error: payErr } = await admin
     .from("payments")
-    .select("amount, plan, created_at, user_email, reference")
+    .select("id, amount, plan, status, created_at, user_email, reference, proof_url")
     .order("created_at", { ascending: false });
   const payments = payErr ? [] : (payRows ?? []);
+  const confirmed = payments.filter((p) => p.status === "confirmed");
+  const pendingPayments = payments.filter((p) => p.status === "pending");
   const sum = (rows: { amount: number }[]) =>
     rows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-  const monthIncome = sum(payments.filter((p) => p.created_at >= monthStartISO));
-  const totalIncome = sum(payments);
-  const recentPayments = payments.slice(0, 12);
+  // Los ingresos sólo cuentan pagos CONFIRMADOS.
+  const monthIncome = sum(confirmed.filter((p) => p.created_at >= monthStartISO));
+  const totalIncome = sum(confirmed);
+  const recentPayments = confirmed.slice(0, 12);
+
+  // Enlaces firmados (1 h) para ver los comprobantes pendientes.
+  const proofLinks = new Map<string, string>();
+  for (const p of pendingPayments) {
+    if (!p.proof_url) continue;
+    const { data: signed } = await admin.storage
+      .from("payment-proofs")
+      .createSignedUrl(p.proof_url, 3600);
+    if (signed?.signedUrl) proofLinks.set(p.id, signed.signedUrl);
+  }
 
   // Suscriptores pagos activos por plan (para MRR estimado)
   const [{ count: activeAi }, { count: activeGeneral }] = await Promise.all([
@@ -132,6 +147,54 @@ export default async function AdminPage() {
           <p className="text-3xl font-extrabold text-primary">{newUsers ?? 0}</p>
         </CardContent>
       </Card>
+
+      {/* Pagos por confirmar */}
+      {pendingPayments.length > 0 && (
+        <div>
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-500">
+            <Clock className="h-4 w-4" /> Pagos por confirmar (
+            {pendingPayments.length})
+          </h2>
+          <div className="space-y-2">
+            {pendingPayments.map((p) => (
+              <Card key={p.id} className="border-amber-500/40">
+                <CardContent className="space-y-2 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {p.user_email ?? "—"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {fmtDate(p.created_at)} ·{" "}
+                        {p.plan === "ai" ? "Plan IA" : "Plan General"}
+                        {p.reference ? ` · Ref: ${p.reference}` : ""}
+                      </p>
+                    </div>
+                    <span className="shrink-0 font-bold text-primary">
+                      {cop(Number(p.amount ?? 0))}
+                    </span>
+                  </div>
+                  {proofLinks.get(p.id) ? (
+                    <a
+                      href={proofLinks.get(p.id)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block text-xs font-medium text-primary underline"
+                    >
+                      Ver comprobante →
+                    </a>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Sin comprobante adjunto (verifica por tu cuenta).
+                    </p>
+                  )}
+                  <PaymentReview paymentId={p.id} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Ingresos / SaaS */}
       <div>

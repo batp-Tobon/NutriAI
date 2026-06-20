@@ -110,6 +110,85 @@ export async function activateMonth(
   return { ok: true };
 }
 
+/**
+ * Confirma un pago enviado por el usuario (estado 'pending'): lo marca como
+ * 'confirmed' y activa/extiende 1 mes del plan del pago.
+ */
+export async function confirmPayment(
+  paymentId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const me = await assertAdmin();
+  if (!me) return { ok: false, error: "No autorizado" };
+
+  const db = createAdminClient();
+  const { data: pay } = await db
+    .from("payments")
+    .select("id, user_id, plan, status")
+    .eq("id", paymentId)
+    .maybeSingle();
+  if (!pay) return { ok: false, error: "Pago no encontrado" };
+  if (!pay.user_id) return { ok: false, error: "El pago no tiene usuario" };
+  if (pay.status !== "pending") {
+    return { ok: false, error: "Ese pago ya fue procesado" };
+  }
+
+  const plan: "general" | "ai" = pay.plan === "ai" ? "ai" : "general";
+
+  // Extiende la suscripción (suma sobre la fecha vigente si aún tiene tiempo).
+  const startDate = new Date();
+  const { data: prof } = await db
+    .from("profiles")
+    .select("subscribed_until")
+    .eq("id", pay.user_id)
+    .maybeSingle();
+  const current =
+    prof?.subscribed_until && new Date(prof.subscribed_until) > startDate
+      ? new Date(prof.subscribed_until)
+      : new Date();
+  current.setDate(current.getDate() + 30);
+
+  const { error: upErr } = await db
+    .from("profiles")
+    .update({
+      subscribed_until: current.toISOString(),
+      subscription_started_at: startDate.toISOString(),
+      renewal_notified_at: null,
+      plan,
+    })
+    .eq("id", pay.user_id);
+  if (upErr) return { ok: false, error: upErr.message };
+
+  // Marca el pago como confirmado (sin crear duplicado) con su período.
+  await db
+    .from("payments")
+    .update({
+      status: "confirmed",
+      period_start: startDate.toISOString().slice(0, 10),
+      period_end: current.toISOString().slice(0, 10),
+      created_by: me.id,
+    })
+    .eq("id", paymentId);
+
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/** Rechaza un pago pendiente (comprobante inválido). */
+export async function rejectPayment(
+  paymentId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!(await assertAdmin())) return { ok: false, error: "No autorizado" };
+  const db = createAdminClient();
+  const { error } = await db
+    .from("payments")
+    .update({ status: "rejected" })
+    .eq("id", paymentId)
+    .eq("status", "pending");
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
 /** Registra un pago manual (monto a medida) sin cambiar la suscripción. */
 export async function registerPayment(
   userId: string,

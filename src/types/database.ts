@@ -286,6 +286,8 @@ export interface Database {
           plan: "general" | "ai";
           method: string;
           reference: string | null;
+          status: "pending" | "confirmed" | "rejected";
+          proof_url: string | null;
           period_start: string | null;
           period_end: string | null;
           created_by: string | null;

@@ -112,6 +112,33 @@ drop policy if exists "payments_select_own" on public.payments;
 create policy "payments_select_own" on public.payments
   for select using (auth.uid() = user_id);
 
+
+-- ============================================================================
+-- 0015 · Confirmación de pagos (comprobantes)
+-- ============================================================================
+alter table public.payments
+  add column if not exists status text not null default 'confirmed',
+  add column if not exists proof_url text;
+
+create index if not exists idx_payments_status
+  on public.payments (status, created_at desc);
+
+insert into storage.buckets (id, name, public)
+values ('payment-proofs', 'payment-proofs', false)
+on conflict (id) do nothing;
+
+drop policy if exists payment_proofs_rw on storage.objects;
+create policy payment_proofs_rw on storage.objects for all
+  to authenticated
+  using (
+    bucket_id = 'payment-proofs'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'payment-proofs'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
 -- ============================================================================
 -- LISTO. Si no salió ningún error en rojo, ya quedó todo.
 -- ============================================================================

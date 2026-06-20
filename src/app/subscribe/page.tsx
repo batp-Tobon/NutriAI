@@ -25,6 +25,15 @@ export default async function SubscribePage() {
   const isAdmin = env.adminEmails.includes((user.email ?? "").toLowerCase());
   const access = getAccess(profile, isAdmin);
 
+  // ¿Tiene un pago pendiente de confirmación? (defensivo si no existe la tabla)
+  const { data: pendingPay } = await supabase
+    .from("payments")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("status", "pending")
+    .maybeSingle();
+  const hasPending = Boolean(pendingPay);
+
   return (
     <div
       className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6"
@@ -122,7 +131,11 @@ export default async function SubscribePage() {
             </p>
           </div>
 
-          <SubscribeActions userEmail={user.email} />
+          <SubscribeActions
+            userId={user.id}
+            userEmail={user.email}
+            hasPending={hasPending}
+          />
         </CardContent>
       </Card>
     </div>
