@@ -276,6 +276,28 @@ export interface Database {
         >;
         Relationships: [];
       };
+      payments: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          user_email: string | null;
+          amount: number;
+          currency: string;
+          plan: "general" | "ai";
+          method: string;
+          reference: string | null;
+          period_start: string | null;
+          period_end: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["payments"]["Row"]> & {
+          amount: number;
+          plan: "general" | "ai";
+        };
+        Update: Partial<Database["public"]["Tables"]["payments"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

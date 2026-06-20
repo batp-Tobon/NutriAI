@@ -1,7 +1,16 @@
-import { Activity, Dumbbell, Sparkles, UtensilsCrossed, Users } from "lucide-react";
+import {
+  Activity,
+  Dumbbell,
+  DollarSign,
+  Sparkles,
+  TrendingUp,
+  UtensilsCrossed,
+  Users,
+} from "lucide-react";
 import { createAdminClient } from "@/infrastructure/supabase/admin";
 import { env, isSupabaseConfigured } from "@/lib/env";
 import { getAccess } from "@/core/application/subscription";
+import { PLAN_PRICE_COP } from "@/lib/constants";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ActivateButton } from "@/components/admin/activate-button";
@@ -71,6 +80,41 @@ export default async function AdminPage() {
     }
   }
 
+  // ---- Ingresos / SaaS (defensivo: si no existe la tabla `payments`, queda en 0)
+  const nowISO = new Date().toISOString();
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const monthStartISO = monthStart.toISOString();
+
+  const { data: payRows, error: payErr } = await admin
+    .from("payments")
+    .select("amount, plan, created_at, user_email, reference")
+    .order("created_at", { ascending: false });
+  const payments = payErr ? [] : (payRows ?? []);
+  const sum = (rows: { amount: number }[]) =>
+    rows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const monthIncome = sum(payments.filter((p) => p.created_at >= monthStartISO));
+  const totalIncome = sum(payments);
+  const recentPayments = payments.slice(0, 12);
+
+  // Suscriptores pagos activos por plan (para MRR estimado)
+  const [{ count: activeAi }, { count: activeGeneral }] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .gt("subscribed_until", nowISO)
+      .eq("plan", "ai"),
+    admin
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .gt("subscribed_until", nowISO)
+      .eq("plan", "general"),
+  ]);
+  const mrr =
+    (activeGeneral ?? 0) * PLAN_PRICE_COP.general +
+    (activeAi ?? 0) * PLAN_PRICE_COP.ai;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -88,6 +132,59 @@ export default async function AdminPage() {
           <p className="text-3xl font-extrabold text-primary">{newUsers ?? 0}</p>
         </CardContent>
       </Card>
+
+      {/* Ingresos / SaaS */}
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
+          Ingresos
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          <Card>
+            <CardContent className="pt-5">
+              <DollarSign className="mb-2 h-5 w-5 text-primary" />
+              <p className="text-2xl font-extrabold">{cop(monthIncome)}</p>
+              <p className="text-xs text-muted-foreground">Este mes</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5">
+              <TrendingUp className="mb-2 h-5 w-5 text-primary" />
+              <p className="text-2xl font-extrabold">{cop(mrr)}</p>
+              <p className="text-xs text-muted-foreground">
+                MRR estimado · {activeGeneral ?? 0} Gen / {activeAi ?? 0} IA
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        <p className="mt-2 px-1 text-xs text-muted-foreground">
+          Ingresos totales registrados: <b>{cop(totalIncome)}</b>
+          {payErr && " · (corre la migración 0014 para registrar pagos)"}
+        </p>
+
+        {recentPayments.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            <h3 className="text-xs font-semibold text-muted-foreground">
+              Pagos recientes
+            </h3>
+            {recentPayments.map((p, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-2 rounded-lg bg-secondary/40 px-3 py-2 text-xs"
+              >
+                <div className="min-w-0">
+                  <p className="truncate">{p.user_email ?? "—"}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {fmtDate(p.created_at)} · {p.plan === "ai" ? "IA" : "General"}
+                  </p>
+                </div>
+                <span className="shrink-0 font-bold text-primary">
+                  {cop(Number(p.amount ?? 0))}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div>
         <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
@@ -196,6 +293,15 @@ function fmtDate(iso: string | null) {
     month: "2-digit",
     year: "2-digit",
   });
+}
+
+/** Formatea un monto en pesos colombianos (sin decimales). */
+function cop(amount: number): string {
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 function PeriodCell({

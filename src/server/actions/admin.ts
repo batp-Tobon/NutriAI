@@ -4,6 +4,46 @@ import { revalidatePath } from "next/cache";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import { createAdminClient } from "@/infrastructure/supabase/admin";
 import { env } from "@/lib/env";
+import { PLAN_PRICE_COP } from "@/lib/constants";
+
+type AdminDB = ReturnType<typeof createAdminClient>;
+
+/**
+ * Registra un pago en la tabla `payments`. Es DEFENSIVO: si la tabla aún no
+ * existe (migración 0014 sin correr), no rompe la activación.
+ */
+async function recordPayment(
+  db: AdminDB,
+  p: {
+    userId: string;
+    plan: "general" | "ai";
+    amount: number;
+    periodStart: string;
+    periodEnd: string;
+    adminId?: string;
+  },
+): Promise<void> {
+  try {
+    const { data: prof } = await db
+      .from("profiles")
+      .select("email")
+      .eq("id", p.userId)
+      .maybeSingle();
+    await db.from("payments").insert({
+      user_id: p.userId,
+      user_email: prof?.email ?? null,
+      amount: p.amount,
+      currency: "COP",
+      plan: p.plan,
+      method: "bre-b",
+      period_start: p.periodStart,
+      period_end: p.periodEnd,
+      created_by: p.adminId ?? null,
+    });
+  } catch {
+    /* la tabla puede no existir todavía; ignoramos */
+  }
+}
 
 /** Verifica que el usuario actual sea administrador. */
 async function assertAdmin() {
@@ -26,7 +66,8 @@ export async function activateMonth(
   userId: string,
   plan: "general" | "ai",
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!(await assertAdmin())) return { ok: false, error: "No autorizado" };
+  const me = await assertAdmin();
+  if (!me) return { ok: false, error: "No autorizado" };
 
   const db = createAdminClient();
   const { data: prof } = await db
@@ -36,8 +77,9 @@ export async function activateMonth(
     .maybeSingle();
 
   // Si aún tiene tiempo, se suma sobre la fecha vigente; si no, desde hoy.
+  const startDate = new Date();
   const current =
-    prof?.subscribed_until && new Date(prof.subscribed_until) > new Date()
+    prof?.subscribed_until && new Date(prof.subscribed_until) > startDate
       ? new Date(prof.subscribed_until)
       : new Date();
   current.setDate(current.getDate() + 30);
@@ -46,13 +88,66 @@ export async function activateMonth(
     .from("profiles")
     .update({
       subscribed_until: current.toISOString(),
-      subscription_started_at: new Date().toISOString(),
+      subscription_started_at: startDate.toISOString(),
       renewal_notified_at: null, // reinicia el aviso para el nuevo periodo
       plan,
     })
     .eq("id", userId);
 
   if (error) return { ok: false, error: error.message };
+
+  // Registra el ingreso (no bloquea la activación si la tabla no existe).
+  await recordPayment(db, {
+    userId,
+    plan,
+    amount: PLAN_PRICE_COP[plan],
+    periodStart: startDate.toISOString().slice(0, 10),
+    periodEnd: current.toISOString().slice(0, 10),
+    adminId: me.id,
+  });
+
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/** Registra un pago manual (monto a medida) sin cambiar la suscripción. */
+export async function registerPayment(
+  userId: string,
+  plan: "general" | "ai",
+  amount: number,
+  reference?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const me = await assertAdmin();
+  if (!me) return { ok: false, error: "No autorizado" };
+  if (!(amount >= 0)) return { ok: false, error: "Monto inválido" };
+
+  const db = createAdminClient();
+  try {
+    const { data: prof } = await db
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+    const { error } = await db.from("payments").insert({
+      user_id: userId,
+      user_email: prof?.email ?? null,
+      amount,
+      currency: "COP",
+      plan,
+      method: "bre-b",
+      reference: reference?.trim() || null,
+      created_by: me.id,
+    });
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof Error
+          ? `${e.message} (¿corriste la migración 0014?)`
+          : "Error",
+    };
+  }
   revalidatePath("/admin");
   return { ok: true };
 }

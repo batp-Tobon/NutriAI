@@ -7,6 +7,12 @@ import type {
 
 export const APP_NAME = "NutriAI";
 
+/** Precio mensual por plan (COP). Base para registrar ingresos y MRR. */
+export const PLAN_PRICE_COP: Record<"general" | "ai", number> = {
+  general: 10000,
+  ai: 20000,
+};
+
 export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
   sedentary: "Sedentario",
   light: "Ligero (1-3 días/sem)",
