@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
+import {
+  getCurrentProfile,
+  getCurrentUser,
+} from "@/infrastructure/supabase/server";
 import { env } from "@/lib/env";
 
 export default async function AdminLayout({
@@ -12,13 +15,7 @@ export default async function AdminLayout({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, email")
-    .eq("id", user.id)
-    .maybeSingle();
-
+  const profile = await getCurrentProfile();
   const isAdmin =
     profile?.role === "admin" ||
     env.adminEmails.includes((user.email ?? "").toLowerCase());

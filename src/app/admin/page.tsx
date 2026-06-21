@@ -43,80 +43,47 @@ export default async function AdminPage() {
 
   const admin = createAdminClient();
 
-  const [users, meals, workouts, chats] = await Promise.all([
-    count(admin, "profiles"),
-    count(admin, "meals"),
-    count(admin, "workouts"),
-    count(admin, "ai_conversations"),
-  ]);
-
   const since = new Date(Date.now() - 7 * 864e5).toISOString();
-  const { count: newUsers } = await admin
-    .from("profiles")
-    .select("*", { count: "exact", head: true })
-    .gte("created_at", since);
-
-  // select("*") es robusto: si aún no aplicaste las migraciones de planes,
-  // la lista sigue mostrando los usuarios (las columnas nuevas llegan vacías).
-  const { data: recent } = await admin
-    .from("profiles")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  // Consumo por usuario (comidas registradas en los últimos 30 días): una sola
-  // consulta para evitar N+1; se agrupa en memoria.
   const since30 = new Date(Date.now() - 30 * 864e5).toISOString();
-  const { data: recentMeals } = await admin
-    .from("meals")
-    .select("user_id, consumed_at")
-    .gte("consumed_at", since30);
-
-  const mealStats = new Map<string, { count: number; last: string }>();
-  for (const m of recentMeals ?? []) {
-    const cur = mealStats.get(m.user_id);
-    if (!cur) mealStats.set(m.user_id, { count: 1, last: m.consumed_at });
-    else {
-      cur.count += 1;
-      if (m.consumed_at > cur.last) cur.last = m.consumed_at;
-    }
-  }
-
-  // ---- Ingresos / SaaS (defensivo: si no existe la tabla `payments`, queda en 0)
   const nowISO = new Date().toISOString();
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
   const monthStartISO = monthStart.toISOString();
 
-  const { data: payRows, error: payErr } = await admin
-    .from("payments")
-    .select(
-      "id, amount, plan, status, method, created_at, user_email, reference, proof_url",
-    )
-    .order("created_at", { ascending: false });
-  const payments = payErr ? [] : (payRows ?? []);
-  const confirmed = payments.filter((p) => p.status === "confirmed");
-  const pendingPayments = payments.filter((p) => p.status === "pending");
-  const sum = (rows: { amount: number }[]) =>
-    rows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-  // Los ingresos sólo cuentan pagos CONFIRMADOS.
-  const monthIncome = sum(confirmed.filter((p) => p.created_at >= monthStartISO));
-  const totalIncome = sum(confirmed);
-  const recentPayments = confirmed.slice(0, 12);
-
-  // Enlaces firmados (1 h) para ver los comprobantes pendientes.
-  const proofLinks = new Map<string, string>();
-  for (const p of pendingPayments) {
-    if (!p.proof_url) continue;
-    const { data: signed } = await admin.storage
-      .from("payment-proofs")
-      .createSignedUrl(p.proof_url, 3600);
-    if (signed?.signedUrl) proofLinks.set(p.id, signed.signedUrl);
-  }
-
-  // Suscriptores pagos activos por plan (para MRR estimado)
-  const [{ count: activeAi }, { count: activeGeneral }] = await Promise.all([
+  // TODAS las lecturas del panel en una sola tanda PARALELA (antes iban en fila).
+  const [
+    users,
+    meals,
+    workouts,
+    chats,
+    { count: newUsers },
+    { data: recent },
+    { data: recentMeals },
+    payResult,
+    { count: activeAi },
+    { count: activeGeneral },
+  ] = await Promise.all([
+    count(admin, "profiles"),
+    count(admin, "meals"),
+    count(admin, "workouts"),
+    count(admin, "ai_conversations"),
+    admin
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", since),
+    admin
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50),
+    admin.from("meals").select("user_id, consumed_at").gte("consumed_at", since30),
+    admin
+      .from("payments")
+      .select(
+        "id, amount, plan, status, method, created_at, user_email, reference, proof_url",
+      )
+      .order("created_at", { ascending: false }),
     admin
       .from("profiles")
       .select("*", { count: "exact", head: true })
@@ -128,6 +95,42 @@ export default async function AdminPage() {
       .gt("subscribed_until", nowISO)
       .eq("plan", "general"),
   ]);
+
+  // Consumo por usuario (comidas de los últimos 30 días) agrupado en memoria.
+  const mealStats = new Map<string, { count: number; last: string }>();
+  for (const m of recentMeals ?? []) {
+    const cur = mealStats.get(m.user_id);
+    if (!cur) mealStats.set(m.user_id, { count: 1, last: m.consumed_at });
+    else {
+      cur.count += 1;
+      if (m.consumed_at > cur.last) cur.last = m.consumed_at;
+    }
+  }
+
+  // ---- Ingresos / SaaS (defensivo: si no existe la tabla `payments`, queda en 0)
+  const payments = payResult.error ? [] : (payResult.data ?? []);
+  const payErr = payResult.error;
+  const confirmed = payments.filter((p) => p.status === "confirmed");
+  const pendingPayments = payments.filter((p) => p.status === "pending");
+  const sum = (rows: { amount: number }[]) =>
+    rows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const monthIncome = sum(confirmed.filter((p) => p.created_at >= monthStartISO));
+  const totalIncome = sum(confirmed);
+  const recentPayments = confirmed.slice(0, 12);
+
+  // Enlaces firmados (1 h) para los comprobantes pendientes — EN PARALELO.
+  const proofLinks = new Map<string, string>();
+  const proofEntries = await Promise.all(
+    pendingPayments
+      .filter((p) => p.proof_url)
+      .map(async (p) => {
+        const { data: signed } = await admin.storage
+          .from("payment-proofs")
+          .createSignedUrl(p.proof_url!, 3600);
+        return [p.id, signed?.signedUrl] as const;
+      }),
+  );
+  for (const [id, url] of proofEntries) if (url) proofLinks.set(id, url);
   const mrr =
     (activeGeneral ?? 0) * PLAN_PRICE_COP.general +
     (activeAi ?? 0) * PLAN_PRICE_COP.ai;

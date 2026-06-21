@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Check, Sparkles } from "lucide-react";
-import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
+import {
+  createClient,
+  getCurrentProfile,
+  getCurrentUser,
+} from "@/infrastructure/supabase/server";
 import { getAccess } from "@/core/application/subscription";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,22 +20,20 @@ export default async function SubscribePage() {
   if (!user) redirect("/login");
 
   const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
+
+  // Perfil (cacheado) y pago pendiente en PARALELO.
+  const [profile, { data: pendingPay }] = await Promise.all([
+    getCurrentProfile(),
+    supabase
+      .from("payments")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .maybeSingle(),
+  ]);
 
   const isAdmin = env.adminEmails.includes((user.email ?? "").toLowerCase());
   const access = getAccess(profile, isAdmin);
-
-  // ¿Tiene un pago pendiente de confirmación? (defensivo si no existe la tabla)
-  const { data: pendingPay } = await supabase
-    .from("payments")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("status", "pending")
-    .maybeSingle();
   const hasPending = Boolean(pendingPay);
 
   return (
