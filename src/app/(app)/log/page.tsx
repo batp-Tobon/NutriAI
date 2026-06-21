@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ChefHat, ChevronRight } from "lucide-react";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
 import { createMealRepository } from "@/infrastructure/supabase/repositories";
 import { getUserAccess } from "@/server/access";
@@ -42,6 +44,26 @@ export default async function LogPage({
       </h1>
 
       <DayNav date={date} today={today} />
+
+      {isToday && (
+        <Link
+          href="/meal-plan"
+          className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-3 transition-colors hover:border-primary/60"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <ChefHat className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-tight">
+              Plan de comidas con IA
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Genera tu menú del día y la lista de mercado
+            </p>
+          </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </Link>
+      )}
 
       {isToday ? (
         <LogClient aiEnabled={access.aiEnabled} />

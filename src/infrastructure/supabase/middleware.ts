@@ -8,6 +8,7 @@ import { env, isSupabaseConfigured } from "@/lib/env";
 const PROTECTED_PREFIXES = [
   "/dashboard",
   "/log",
+  "/meal-plan",
   "/plan",
   "/progress",
   "/coach",
