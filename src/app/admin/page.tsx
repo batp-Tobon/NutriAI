@@ -91,7 +91,9 @@ export default async function AdminPage() {
 
   const { data: payRows, error: payErr } = await admin
     .from("payments")
-    .select("id, amount, plan, status, created_at, user_email, reference, proof_url")
+    .select(
+      "id, amount, plan, status, method, created_at, user_email, reference, proof_url",
+    )
     .order("created_at", { ascending: false });
   const payments = payErr ? [] : (payRows ?? []);
   const confirmed = payments.filter((p) => p.status === "confirmed");
@@ -237,7 +239,8 @@ export default async function AdminPage() {
                 <div className="min-w-0">
                   <p className="truncate">{p.user_email ?? "—"}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {fmtDate(p.created_at)} · {p.plan === "ai" ? "IA" : "General"}
+                    {fmtDate(p.created_at)} · {p.plan === "ai" ? "IA" : "General"}{" "}
+                    · {methodLabel(p.method)}
                   </p>
                 </div>
                 <span className="shrink-0 font-bold text-primary">
@@ -356,6 +359,13 @@ function fmtDate(iso: string | null) {
     month: "2-digit",
     year: "2-digit",
   });
+}
+
+/** Etiqueta legible del método de pago. */
+function methodLabel(method: string | null): string {
+  if (method === "wompi") return "En línea (Wompi)";
+  if (method === "bre-b") return "Manual (Bre-B)";
+  return method ?? "—";
 }
 
 /** Formatea un monto en pesos colombianos (sin decimales). */

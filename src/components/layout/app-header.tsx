@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, LogOut, Settings, User } from "lucide-react";
+import { Bell, CreditCard, LogOut, Settings, User } from "lucide-react";
 import { createClient } from "@/infrastructure/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -54,6 +54,11 @@ export function AppHeader({
           <DropdownMenuItem asChild>
             <Link href="/profile">
               <User className="h-4 w-4" /> Perfil
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/subscribe">
+              <CreditCard className="h-4 w-4" /> Suscripción
             </Link>
           </DropdownMenuItem>
           {(isAdmin || profile?.role === "admin") && (

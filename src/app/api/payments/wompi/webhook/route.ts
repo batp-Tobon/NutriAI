@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/infrastructure/supabase/admin";
 import {
+  parseReference,
   parseTransaction,
   verifyEventChecksum,
 } from "@/infrastructure/wompi/client";
+import { PLAN_PRICE_COP } from "@/lib/constants";
 import { isWompiConfigured } from "@/lib/env";
 
 export const runtime = "nodejs";
 
 /**
- * Webhook de eventos de Wompi. Al aprobarse una transacción, confirma el pago
- * (cuya `reference` es el id del registro en `payments`) y activa/extiende el
- * mes del plan. Idempotente y con verificación de firma.
+ * Webhook de eventos de Wompi. Al APROBARSE una transacción, crea el pago
+ * (confirmado) a partir de la referencia (usuario + plan) y activa/extiende el
+ * mes. Verifica la firma del evento y el monto; es idempotente por referencia.
  */
 export async function POST(request: Request) {
   if (!isWompiConfigured()) {
@@ -30,37 +32,34 @@ export async function POST(request: Request) {
   }
 
   const tx = parseTransaction(payload as never);
-  if (!tx || !tx.reference) {
-    return NextResponse.json({ ok: true }); // nada que hacer
+  if (!tx || tx.status !== "APPROVED") {
+    return NextResponse.json({ ok: true }); // solo nos interesan los aprobados
+  }
+
+  const ref = parseReference(tx.reference);
+  if (!ref) return NextResponse.json({ ok: true });
+
+  // El monto aprobado debe coincidir con el precio del plan (anti-manipulación).
+  if (tx.amountInCents !== PLAN_PRICE_COP[ref.plan] * 100) {
+    return NextResponse.json({ ok: true });
   }
 
   const db = createAdminClient();
-  const { data: pay } = await db
+
+  // Idempotencia: si ya procesamos esta referencia, no repetimos.
+  const { data: existing } = await db
     .from("payments")
-    .select("id, user_id, plan, status")
-    .eq("id", tx.reference)
+    .select("id")
+    .eq("reference", tx.reference)
     .maybeSingle();
-  if (!pay) return NextResponse.json({ ok: true });
+  if (existing) return NextResponse.json({ ok: true });
 
-  // Estados terminales fallidos → marca el pago como rechazado.
-  if (["DECLINED", "ERROR", "VOIDED"].includes(tx.status)) {
-    if (pay.status === "pending") {
-      await db.from("payments").update({ status: "rejected" }).eq("id", pay.id);
-    }
-    return NextResponse.json({ ok: true });
-  }
-
-  // Sólo activamos en APROBADO y si aún no estaba confirmado (idempotente).
-  if (tx.status !== "APPROVED" || pay.status === "confirmed" || !pay.user_id) {
-    return NextResponse.json({ ok: true });
-  }
-
-  const plan: "general" | "ai" = pay.plan === "ai" ? "ai" : "general";
+  // Extiende la suscripción (suma sobre la fecha vigente si aún tiene tiempo).
   const startDate = new Date();
   const { data: prof } = await db
     .from("profiles")
-    .select("subscribed_until")
-    .eq("id", pay.user_id)
+    .select("email, subscribed_until")
+    .eq("id", ref.userId)
     .maybeSingle();
   const current =
     prof?.subscribed_until && new Date(prof.subscribed_until) > startDate
@@ -74,18 +73,23 @@ export async function POST(request: Request) {
       subscribed_until: current.toISOString(),
       subscription_started_at: startDate.toISOString(),
       renewal_notified_at: null,
-      plan,
+      plan: ref.plan,
     })
-    .eq("id", pay.user_id);
+    .eq("id", ref.userId);
 
-  await db
-    .from("payments")
-    .update({
-      status: "confirmed",
-      period_start: startDate.toISOString().slice(0, 10),
-      period_end: current.toISOString().slice(0, 10),
-    })
-    .eq("id", pay.id);
+  // Registra el ingreso (confirmado) con la referencia para idempotencia.
+  await db.from("payments").insert({
+    user_id: ref.userId,
+    user_email: prof?.email ?? null,
+    amount: PLAN_PRICE_COP[ref.plan],
+    currency: "COP",
+    plan: ref.plan,
+    method: "wompi",
+    status: "confirmed",
+    reference: tx.reference,
+    period_start: startDate.toISOString().slice(0, 10),
+    period_end: current.toISOString().slice(0, 10),
+  });
 
   return NextResponse.json({ ok: true });
 }

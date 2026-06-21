@@ -11,6 +11,28 @@ import { env } from "@/lib/env";
 
 const CHECKOUT_URL = "https://checkout.wompi.co/p/";
 const CURRENCY = "COP";
+const REF_PREFIX = "nutriai";
+
+/**
+ * La referencia codifica el usuario y el plan para que el webhook sepa a quién
+ * activar (Wompi no crea filas en `payments`; se crea al aprobarse). Formato:
+ *   nutriai__<userId>__<plan>__<timestamp>
+ * El separador "__" no aparece en los UUID ni en los planes.
+ */
+export function buildReference(userId: string, plan: "general" | "ai"): string {
+  return `${REF_PREFIX}__${userId}__${plan}__${Date.now()}`;
+}
+
+export function parseReference(
+  ref: string,
+): { userId: string; plan: "general" | "ai" } | null {
+  const parts = ref.split("__");
+  if (parts.length < 4 || parts[0] !== REF_PREFIX) return null;
+  const userId = parts[1];
+  const plan = parts[2];
+  if (!userId || (plan !== "general" && plan !== "ai")) return null;
+  return { userId, plan };
+}
 
 /** Firma de integridad del Web Checkout: SHA256(ref + monto + moneda + secreto). */
 export function integritySignature(

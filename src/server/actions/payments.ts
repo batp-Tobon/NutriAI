@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/infrastructure/supabase/server";
 import { createAdminClient } from "@/infrastructure/supabase/admin";
-import { buildCheckoutUrl } from "@/infrastructure/wompi/client";
+import { buildCheckoutUrl, buildReference } from "@/infrastructure/wompi/client";
 import { PLAN_PRICE_COP } from "@/lib/constants";
 import { env, isWompiConfigured } from "@/lib/env";
 
 /**
- * Crea una transacción Wompi: registra un pago 'pending' (método 'wompi') y
- * devuelve la URL del Web Checkout. El webhook lo confirmará al aprobarse.
+ * Inicia un pago Wompi: arma el Web Checkout con una referencia que codifica el
+ * usuario y el plan. NO crea fila en `payments` (el webhook la crea al aprobarse),
+ * así no quedan pagos pendientes huérfanos si el usuario abandona el checkout.
  */
 export async function createWompiCheckout(
   plan: "general" | "ai",
@@ -24,26 +25,8 @@ export async function createWompiCheckout(
   }
 
   const amount = PLAN_PRICE_COP[plan];
-  const db = createAdminClient();
-  const { data: row, error } = await db
-    .from("payments")
-    .insert({
-      user_id: user.id,
-      user_email: user.email ?? null,
-      amount,
-      currency: "COP",
-      plan,
-      method: "wompi",
-      status: "pending",
-    })
-    .select("id")
-    .single();
-  if (error || !row) {
-    return { ok: false, error: error?.message ?? "No se pudo iniciar el pago" };
-  }
-
   const url = buildCheckoutUrl({
-    reference: row.id, // la referencia es el id del pago (lo busca el webhook)
+    reference: buildReference(user.id, plan),
     amountInCents: amount * 100,
     redirectUrl: `${env.appUrl}/subscribe?pago=procesando`,
     customerEmail: user.email ?? undefined,
