@@ -345,6 +345,29 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
 
   return (
     <div className="space-y-4">
+      {/* Escanear código de barras: acción aparte y rápida (sin IA, todos los planes) */}
+      <button
+        onClick={() => setScanning(true)}
+        disabled={lookingUp}
+        className="flex w-full items-center gap-3 rounded-2xl border border-primary/40 bg-primary/5 p-3 text-left transition-colors hover:border-primary/70 disabled:opacity-60"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          {lookingUp ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <ScanBarcode className="h-5 w-5" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold leading-tight">
+            {lookingUp ? "Buscando producto…" : "Escanear código de barras"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Registra un producto al instante con su info nutricional
+          </p>
+        </div>
+      </button>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList>
@@ -494,25 +517,6 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
       {tab === "manual" && (
         <Card>
           <CardContent className="space-y-3 pt-5">
-            {/* Escanear código de barras (sin IA, disponible en todos los planes) */}
-            <Button
-              variant="default"
-              className="w-full"
-              onClick={() => setScanning(true)}
-              disabled={lookingUp}
-            >
-              {lookingUp ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ScanBarcode className="h-4 w-4" />
-              )}
-              {lookingUp ? "Buscando producto…" : "Escanear código de barras"}
-            </Button>
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="h-px flex-1 bg-border" /> o busca por nombre
-              <span className="h-px flex-1 bg-border" />
-            </div>
-
             <div className="flex gap-2">
               <Input
                 value={foodQuery}

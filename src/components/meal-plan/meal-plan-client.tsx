@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   CheckCircle2,
   ChefHat,
   Loader2,
+  Lock,
   RefreshCw,
   ShoppingCart,
   Sparkles,
 } from "lucide-react";
 import { generateMealPlanAction } from "@/server/actions/meal-plan";
 import { saveMeal } from "@/server/actions/meals";
+import { BASE_MEAL_PLANS, pickBasePlan } from "@/lib/base-meals";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -41,9 +44,11 @@ const STORAGE = "nutriai-meal-plan";
 export function MealPlanClient({
   defaultKcal,
   defaultProtein,
+  aiEnabled,
 }: {
   defaultKcal: number;
   defaultProtein: number;
+  aiEnabled: boolean;
 }) {
   const [kcal, setKcal] = useState(defaultKcal);
   const [protein, setProtein] = useState(defaultProtein);
@@ -84,6 +89,14 @@ export function MealPlanClient({
     } catch {
       /* ignore */
     }
+  }
+
+  function loadBasePlan(p: MealPlan) {
+    setPlan(p);
+    setLogged({});
+    setChecked({});
+    persist(p, {});
+    toast.success("Plan base cargado 🍽️");
   }
 
   function generate() {
@@ -156,11 +169,54 @@ export function MealPlanClient({
       )
     : null;
 
+  const recommendedBase = pickBasePlan(defaultKcal);
+
   return (
     <div className="space-y-4">
-      {/* Formulario */}
+      {/* Planes base (sin IA) — disponibles para todos */}
+      <Card>
+        <CardContent className="space-y-2 pt-5">
+          <h2 className="text-sm font-semibold">Planes base (sin IA)</h2>
+          <p className="text-xs text-muted-foreground">
+            Menús balanceados listos. Elige el más cercano a tu objetivo
+            ({defaultKcal} kcal).
+          </p>
+          <div className="grid gap-2">
+            {BASE_MEAL_PLANS.map((p) => (
+              <button
+                key={p.level}
+                onClick={() => loadBasePlan(p)}
+                className={cn(
+                  "flex items-center justify-between rounded-xl border px-3 py-2.5 text-left transition-colors",
+                  p.level === recommendedBase.level
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-border hover:border-primary/40",
+                )}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{p.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.meals.length} comidas
+                  </p>
+                </div>
+                {p.level === recommendedBase.level && (
+                  <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    Recomendado
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Generador con IA (plan IA) o invitación a mejorar */}
+      {aiEnabled ? (
       <Card>
         <CardContent className="space-y-3 pt-5">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <Sparkles className="h-4 w-4 text-primary" /> A tu medida con IA
+          </h2>
           <div className="grid grid-cols-2 gap-2">
             <Field label="Calorías objetivo">
               <input
@@ -276,6 +332,21 @@ export function MealPlanClient({
           </Button>
         </CardContent>
       </Card>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 py-6 text-center">
+            <Lock className="h-6 w-6 text-muted-foreground" />
+            <p className="text-sm font-semibold">Plan a tu medida con IA</p>
+            <p className="text-xs text-muted-foreground">
+              Genera menús personalizados según tus calorías, dieta y presupuesto
+              con el <b>plan IA</b>.
+            </p>
+            <Button asChild size="sm" className="mt-1">
+              <Link href="/subscribe">Ver planes</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Plan generado */}
       {plan && total && (
