@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SubscribeActions } from "@/components/subscription/subscribe-actions";
 import { PaymentQR } from "@/components/subscription/payment-qr";
-import { env } from "@/lib/env";
+import { env, isWompiConfigured } from "@/lib/env";
 
 export const metadata = { title: "Suscripción" };
 
@@ -135,6 +135,7 @@ export default async function SubscribePage() {
             userId={user.id}
             userEmail={user.email}
             hasPending={hasPending}
+            wompiEnabled={isWompiConfigured()}
           />
         </CardContent>
       </Card>

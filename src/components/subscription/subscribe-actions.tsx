@@ -3,9 +3,19 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, ImagePlus, Loader2, LogOut, MessageCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  CreditCard,
+  ImagePlus,
+  Loader2,
+  LogOut,
+  MessageCircle,
+} from "lucide-react";
 import { createClient } from "@/infrastructure/supabase/client";
-import { submitPaymentProof } from "@/server/actions/payments";
+import {
+  createWompiCheckout,
+  submitPaymentProof,
+} from "@/server/actions/payments";
 import { Button } from "@/components/ui/button";
 import { env } from "@/lib/env";
 
@@ -37,10 +47,12 @@ export function SubscribeActions({
   userId,
   userEmail,
   hasPending = false,
+  wompiEnabled = false,
 }: {
   userId: string;
   userEmail?: string;
   hasPending?: boolean;
+  wompiEnabled?: boolean;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -49,6 +61,18 @@ export function SubscribeActions({
   const [proofPath, setProofPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, startSubmit] = useTransition();
+  const [paying, startPay] = useTransition();
+
+  function payOnline() {
+    startPay(async () => {
+      const res = await createWompiCheckout(plan);
+      if (!res.ok || !res.url) {
+        toast.error(res.error ?? "No se pudo iniciar el pago");
+        return;
+      }
+      window.location.href = res.url; // redirige al checkout de Wompi
+    });
+  }
 
   const waText = encodeURIComponent(
     `Hola, soy ${userEmail ?? "un usuario"} de NutriAI. Ya hice el pago por Bre-B y envío mi comprobante.`,
@@ -126,11 +150,7 @@ export function SubscribeActions({
 
   return (
     <div className="space-y-3 text-left">
-      <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Confirmar mi pago
-      </p>
-
-      {/* Plan pagado */}
+      {/* Plan elegido (compartido por el pago en línea y el manual) */}
       <div className="grid grid-cols-2 gap-2">
         {(["general", "ai"] as const).map((p) => (
           <button
@@ -146,6 +166,31 @@ export function SubscribeActions({
           </button>
         ))}
       </div>
+
+      {/* Pago en línea (Wompi) — sólo si está configurado */}
+      {wompiEnabled && (
+        <>
+          <Button className="w-full" onClick={payOnline} disabled={paying}>
+            {paying ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CreditCard className="h-4 w-4" />
+            )}
+            Pagar plan {plan === "ai" ? "IA" : "General"} en línea
+          </Button>
+          <p className="text-center text-[11px] text-muted-foreground">
+            Tarjeta · Nequi · PSE · Bancolombia · se activa automáticamente
+          </p>
+          <div className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground">
+            <span className="h-px flex-1 bg-border" /> o envía tu comprobante
+            <span className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
+
+      <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Confirmar pago manual (Bre-B)
+      </p>
 
       <input
         value={reference}

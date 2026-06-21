@@ -3,7 +3,53 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/infrastructure/supabase/server";
 import { createAdminClient } from "@/infrastructure/supabase/admin";
+import { buildCheckoutUrl } from "@/infrastructure/wompi/client";
 import { PLAN_PRICE_COP } from "@/lib/constants";
+import { env, isWompiConfigured } from "@/lib/env";
+
+/**
+ * Crea una transacción Wompi: registra un pago 'pending' (método 'wompi') y
+ * devuelve la URL del Web Checkout. El webhook lo confirmará al aprobarse.
+ */
+export async function createWompiCheckout(
+  plan: "general" | "ai",
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+  if (!isWompiConfigured()) {
+    return { ok: false, error: "Los pagos en línea no están disponibles aún." };
+  }
+  if (plan !== "general" && plan !== "ai") {
+    return { ok: false, error: "Plan inválido" };
+  }
+
+  const amount = PLAN_PRICE_COP[plan];
+  const db = createAdminClient();
+  const { data: row, error } = await db
+    .from("payments")
+    .insert({
+      user_id: user.id,
+      user_email: user.email ?? null,
+      amount,
+      currency: "COP",
+      plan,
+      method: "wompi",
+      status: "pending",
+    })
+    .select("id")
+    .single();
+  if (error || !row) {
+    return { ok: false, error: error?.message ?? "No se pudo iniciar el pago" };
+  }
+
+  const url = buildCheckoutUrl({
+    reference: row.id, // la referencia es el id del pago (lo busca el webhook)
+    amountInCents: amount * 100,
+    redirectUrl: `${env.appUrl}/subscribe?pago=procesando`,
+    customerEmail: user.email ?? undefined,
+  });
+  return { ok: true, url };
+}
 
 /**
  * El usuario declara su pago y (opcionalmente) adjunta el comprobante. Crea un

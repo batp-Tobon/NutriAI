@@ -25,7 +25,15 @@ export const env = {
   vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "",
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? "",
   vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:admin@nutriai.app",
+  // Pasarela de pagos Wompi (Bancolombia). Inerte hasta que se configuren.
+  wompiPublicKey: process.env.NEXT_PUBLIC_WOMPI_PUBLIC_KEY ?? "",
+  wompiIntegritySecret: process.env.WOMPI_INTEGRITY_SECRET ?? "",
+  wompiEventsSecret: process.env.WOMPI_EVENTS_SECRET ?? "",
 };
+
+/** Wompi está listo si hay llave pública (checkout) y secreto de integridad (firma). */
+export const isWompiConfigured = () =>
+  Boolean(env.wompiPublicKey && env.wompiIntegritySecret);
 
 export const isPushConfigured = () =>
   Boolean(env.vapidPublicKey && env.vapidPrivateKey);
