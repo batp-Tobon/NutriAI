@@ -1,4 +1,8 @@
-import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
+import {
+  createClient,
+  getCurrentProfile,
+  getCurrentUser,
+} from "@/infrastructure/supabase/server";
 import {
   createMealRepository,
   createMeasurementRepository,
@@ -21,19 +25,31 @@ export default async function ProgressPage() {
   const user = await getCurrentUser();
   const supabase = await createClient();
 
-  const progress = await createProgressRepository(supabase).list(user!.id, 90);
-  const latest = await createMeasurementRepository(supabase).latest(user!.id);
-
-  // Calorías consumidas por día (últimos 7 días locales)
   const today = todayISO();
   const weekDays = Array.from({ length: 7 }, (_, i) =>
     shiftDateISO(today, i - 6),
   );
-  const weekMeals = await createMealRepository(supabase).listBetween(
-    user!.id,
-    dayBoundsUTC(weekDays[0]).from,
-    dayBoundsUTC(today).to,
-  );
+
+  // Todas las lecturas en PARALELO (antes: 5 consultas en fila); perfil cacheado.
+  const [progress, latest, weekMeals, prof, { data: setLogs }] =
+    await Promise.all([
+      createProgressRepository(supabase).list(user!.id, 90),
+      createMeasurementRepository(supabase).latest(user!.id),
+      createMealRepository(supabase).listBetween(
+        user!.id,
+        dayBoundsUTC(weekDays[0]).from,
+        dayBoundsUTC(today).to,
+      ),
+      getCurrentProfile(),
+      supabase
+        .from("workout_set_logs")
+        .select("exercise_name, weight_kg, reps, performed_at")
+        .eq("user_id", user!.id)
+        .gt("weight_kg", 0)
+        .order("performed_at", { ascending: false })
+        .limit(400),
+    ]);
+
   const kcalByDay = new Map<string, number>(weekDays.map((d) => [d, 0]));
   for (const m of weekMeals) {
     const d = toAppDateISO(m.consumed_at);
@@ -46,21 +62,7 @@ export default async function ProgressPage() {
     kcal: kcalByDay.get(d) ?? 0,
   }));
 
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("daily_calorie_target")
-    .eq("id", user!.id)
-    .maybeSingle();
-
-  // Récords personales: mejor peso por ejercicio
-  const { data: setLogs } = await supabase
-    .from("workout_set_logs")
-    .select("exercise_name, weight_kg, reps, performed_at")
-    .eq("user_id", user!.id)
-    .gt("weight_kg", 0)
-    .order("performed_at", { ascending: false })
-    .limit(400);
-
+  // Récords personales: mejor peso por ejercicio (setLogs viene del Promise.all)
   const records = new Map<
     string,
     { weight: number; reps: number; date: string }

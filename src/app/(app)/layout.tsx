@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
+import { getCurrentProfile, getCurrentUser } from "@/infrastructure/supabase/server";
 import { AppHeader } from "@/components/layout/app-header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { CoachFab } from "@/components/coach/coach-fab";
@@ -15,12 +15,7 @@ export default async function AppLayout({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
+  const profile = await getCurrentProfile();
 
   // Forzar onboarding si el perfil no está completo
   if (profile && !profile.onboarding_completed) {

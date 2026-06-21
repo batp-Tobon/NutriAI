@@ -13,7 +13,11 @@ import {
   UtensilsCrossed,
   Beef,
 } from "lucide-react";
-import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
+import {
+  createClient,
+  getCurrentProfile,
+  getCurrentUser,
+} from "@/infrastructure/supabase/server";
 import {
   createMealRepository,
   createProgressRepository,
@@ -49,10 +53,10 @@ export default async function DeficitPage() {
   const today = todayISO();
   const weekAgo = shiftDateISO(today, -6);
 
-  // Lecturas en paralelo (perfil + comidas/progreso/entrenos de la semana).
-  const [{ data: profile }, mealsWeek, progressWeek, { data: workoutsWeek }] =
+  // Lecturas en paralelo; el perfil viene cacheado del layout.
+  const [profile, mealsWeek, progressWeek, { data: workoutsWeek }] =
     await Promise.all([
-      supabase.from("profiles").select("*").eq("id", user!.id).single(),
+      getCurrentProfile(),
       createMealRepository(supabase).listBetween(
         user!.id,
         dayBoundsUTC(weekAgo).from,
