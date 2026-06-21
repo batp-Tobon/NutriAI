@@ -9,8 +9,8 @@ import {
   createProgressRepository,
 } from "@/infrastructure/supabase/repositories";
 import { Card, CardContent } from "@/components/ui/card";
-import { CompositionChart } from "@/components/charts/composition-chart";
-import { CaloriesBarChart } from "@/components/charts/calories-bar-chart";
+import { CompositionChart } from "@/components/charts/composition-chart-lazy";
+import { CaloriesBarChart } from "@/components/charts/calories-bar-chart-lazy";
 import { ProgressDialog } from "@/components/progress/progress-dialog";
 import {
   dayBoundsUTC,

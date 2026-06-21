@@ -30,7 +30,7 @@ import { MacroRing } from "@/components/dashboard/macro-ring";
 import { SleepLogger } from "@/components/dashboard/sleep-logger";
 import { WaterCard } from "@/components/dashboard/water-card";
 import { InsightsCard } from "@/components/dashboard/insights-card";
-import { WeightSparkline } from "@/components/charts/weight-sparkline";
+import { WeightSparkline } from "@/components/charts/weight-sparkline-lazy";
 import { SupportBanner } from "@/components/subscription/support-banner";
 import { getAccess } from "@/core/application/subscription";
 import { dailyInsights, waterGoalMl } from "@/core/application/insights";

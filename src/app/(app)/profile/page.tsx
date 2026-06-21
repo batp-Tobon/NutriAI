@@ -1,4 +1,4 @@
-import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
+import { getCurrentProfile } from "@/infrastructure/supabase/server";
 import { ProfileForm } from "@/components/profile/profile-form";
 import { GymReminder } from "@/components/profile/gym-reminder";
 import { NotificationsToggle } from "@/components/pwa/notifications-toggle";
@@ -8,13 +8,8 @@ import { GOAL_LABELS } from "@/lib/constants";
 export const metadata = { title: "Perfil" };
 
 export default async function ProfilePage() {
-  const user = await getCurrentUser();
-  const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user!.id)
-    .single();
+  // Perfil cacheado por request (ya lo trae el layout).
+  const profile = await getCurrentProfile();
 
   return (
     <div className="space-y-5 py-2">

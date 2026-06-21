@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Pencil } from "lucide-react";
-import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
+import {
+  createClient,
+  getCurrentProfile,
+  getCurrentUser,
+} from "@/infrastructure/supabase/server";
 import { createWorkoutRepository } from "@/infrastructure/supabase/repositories";
 import { getUserAccess } from "@/server/access";
 import { WorkoutGenerator } from "@/components/workouts/workout-generator";
@@ -29,14 +33,11 @@ export default async function PlanPage({
   const supabase = await createClient();
   const repo = createWorkoutRepository(supabase);
 
-  const [completedDay, scheduledDay, { data: prof }] = await Promise.all([
+  // Perfil cacheado (del layout) + entrenos del día, en paralelo.
+  const [completedDay, scheduledDay, prof] = await Promise.all([
     repo.completedOn(user!.id, date),
     repo.scheduledOn(user!.id, date),
-    supabase
-      .from("profiles")
-      .select("current_weight_kg")
-      .eq("id", user!.id)
-      .maybeSingle(),
+    getCurrentProfile(),
   ]);
 
   // Secciones de "hoy" (generador, rutinas, actividad) solo en el día actual
@@ -44,12 +45,15 @@ export default async function PlanPage({
   let dates: string[] = [];
   let aiEnabled = false;
   if (isToday) {
-    const { access } = await getUserAccess();
-    aiEnabled = access.aiEnabled;
-    const workouts = await repo.list(user!.id, 30);
-    routines = workouts.filter((w) => (w.plan?.length ?? 0) > 0);
     const since = new Date(Date.now() - 90 * 864e5).toISOString();
-    dates = await repo.completedDates(user!.id, since);
+    const [{ access }, workouts, completedDates] = await Promise.all([
+      getUserAccess(),
+      repo.list(user!.id, 30),
+      repo.completedDates(user!.id, since),
+    ]);
+    aiEnabled = access.aiEnabled;
+    routines = workouts.filter((w) => (w.plan?.length ?? 0) > 0);
+    dates = completedDates;
   }
 
   return (

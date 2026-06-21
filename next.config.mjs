@@ -30,6 +30,8 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "8mb",
     },
+    // Tree-shaking agresivo de librerías grandes → menos JS en el cliente.
+    optimizePackageImports: ["lucide-react", "recharts"],
   },
 };
 
