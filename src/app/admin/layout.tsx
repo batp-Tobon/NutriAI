@@ -27,9 +27,10 @@ export default async function AdminLayout({
 
   return (
     <div
-      className="mx-auto min-h-dvh w-full max-w-3xl pb-10"
+      className="mx-auto min-h-dvh w-full max-w-3xl"
       style={{
         paddingTop: "calc(env(safe-area-inset-top) + 1.25rem)",
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 2.5rem)",
         paddingLeft: "max(1rem, env(safe-area-inset-left))",
         paddingRight: "max(1rem, env(safe-area-inset-right))",
       }}

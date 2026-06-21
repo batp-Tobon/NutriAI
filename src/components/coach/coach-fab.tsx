@@ -12,11 +12,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Lock, X } from "lucide-react";
+import { Loader2, Lock, X } from "lucide-react";
 import { ChatClient } from "@/components/coach/chat-client";
+import { loadCoachHistory, type CoachMsg } from "@/server/actions/coach";
 import { Button } from "@/components/ui/button";
 
-type ChatMsg = { role: "user" | "assistant"; content: string };
 type Pos = { x: number; y: number };
 
 const STORAGE_KEY = "nutriai-coach-fab";
@@ -26,15 +26,19 @@ const TOP_GAP = 72; // alto aproximado del header
 const BOTTOM_GAP = 96; // alto aproximado de la barra inferior + safe-area
 const DRAG_THRESHOLD = 6; // px para distinguir "tap" de "arrastre"
 
-export function CoachFab({
-  aiEnabled,
-  initial,
-}: {
-  aiEnabled: boolean;
-  initial: ChatMsg[];
-}) {
+export function CoachFab({ aiEnabled }: { aiEnabled: boolean }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<Pos | null>(null);
+  const [history, setHistory] = useState<CoachMsg[] | null>(null);
+
+  // Carga perezosa del historial: solo al abrir el chat por primera vez.
+  useEffect(() => {
+    if (open && aiEnabled && history === null) {
+      loadCoachHistory()
+        .then(setHistory)
+        .catch(() => setHistory([]));
+    }
+  }, [open, aiEnabled, history]);
 
   const dragging = useRef(false);
   const moved = useRef(false);
@@ -172,7 +176,13 @@ export function CoachFab({
             </div>
 
             {aiEnabled ? (
-              <ChatClient initial={initial} className="min-h-0 flex-1" />
+              history === null ? (
+                <div className="flex flex-1 items-center justify-center text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <ChatClient initial={history} className="min-h-0 flex-1" />
+              )
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-muted-foreground">

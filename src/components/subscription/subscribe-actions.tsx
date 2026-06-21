@@ -48,11 +48,13 @@ export function SubscribeActions({
   userEmail,
   hasPending = false,
   wompiEnabled = false,
+  isAdmin = false,
 }: {
   userId: string;
   userEmail?: string;
   hasPending?: boolean;
   wompiEnabled?: boolean;
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -186,6 +188,19 @@ export function SubscribeActions({
             <span className="h-px flex-1 bg-border" />
           </div>
         </>
+      )}
+
+      {/* Vista previa solo-admin: dónde aparecerá el pago en línea sin llaves */}
+      {!wompiEnabled && isAdmin && (
+        <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 text-center">
+          <Button className="w-full" disabled>
+            <CreditCard className="h-4 w-4" /> Pagar en línea (Wompi)
+          </Button>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Vista previa de admin · aquí verán el botón los usuarios. Configura las
+            llaves de Wompi en Vercel para activarlo.
+          </p>
+        </div>
       )}
 
       <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">

@@ -39,25 +39,23 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   const supabase = await createClient();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user!.id)
-    .single();
-
   const today = todayISO();
-  const meals = await createMealRepository(supabase).listByDate(user!.id, today);
-  const progress = await createProgressRepository(supabase).list(user!.id, 30);
-
-  // Entrenamientos completados hoy (día local) → calorías gastadas
   const bounds = dayBoundsUTC(today);
-  const { data: doneWorkouts } = await supabase
-    .from("workouts")
-    .select("workout_type, duration_min")
-    .eq("user_id", user!.id)
-    .not("completed_at", "is", null)
-    .gte("completed_at", bounds.from)
-    .lte("completed_at", bounds.to);
+
+  // Todas las lecturas en PARALELO (antes eran secuenciales → más lento).
+  const [{ data: profile }, meals, progress, { data: doneWorkouts }] =
+    await Promise.all([
+      supabase.from("profiles").select("*").eq("id", user!.id).single(),
+      createMealRepository(supabase).listByDate(user!.id, today),
+      createProgressRepository(supabase).list(user!.id, 30),
+      supabase
+        .from("workouts")
+        .select("workout_type, duration_min")
+        .eq("user_id", user!.id)
+        .not("completed_at", "is", null)
+        .gte("completed_at", bounds.from)
+        .lte("completed_at", bounds.to),
+    ]);
 
   const consumed = sumMacros(
     meals.map((m) => ({

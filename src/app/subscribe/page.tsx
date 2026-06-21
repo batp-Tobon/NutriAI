@@ -136,6 +136,7 @@ export default async function SubscribePage() {
             userEmail={user.email}
             hasPending={hasPending}
             wompiEnabled={isWompiConfigured()}
+            isAdmin={isAdmin}
           />
         </CardContent>
       </Card>

@@ -46,31 +46,27 @@ export default async function DeficitPage() {
   const user = await getCurrentUser();
   const supabase = await createClient();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user!.id)
-    .single();
-
   const today = todayISO();
   const weekAgo = shiftDateISO(today, -6);
 
-  const mealsWeek = await createMealRepository(supabase).listBetween(
-    user!.id,
-    dayBoundsUTC(weekAgo).from,
-    dayBoundsUTC(today).to,
-  );
-  const progressWeek = await createProgressRepository(supabase).list(
-    user!.id,
-    14,
-  );
-  const { data: workoutsWeek } = await supabase
-    .from("workouts")
-    .select("workout_type, duration_min, completed_at")
-    .eq("user_id", user!.id)
-    .not("completed_at", "is", null)
-    .gte("completed_at", dayBoundsUTC(weekAgo).from)
-    .lte("completed_at", dayBoundsUTC(today).to);
+  // Lecturas en paralelo (perfil + comidas/progreso/entrenos de la semana).
+  const [{ data: profile }, mealsWeek, progressWeek, { data: workoutsWeek }] =
+    await Promise.all([
+      supabase.from("profiles").select("*").eq("id", user!.id).single(),
+      createMealRepository(supabase).listBetween(
+        user!.id,
+        dayBoundsUTC(weekAgo).from,
+        dayBoundsUTC(today).to,
+      ),
+      createProgressRepository(supabase).list(user!.id, 14),
+      supabase
+        .from("workouts")
+        .select("workout_type, duration_min, completed_at")
+        .eq("user_id", user!.id)
+        .not("completed_at", "is", null)
+        .gte("completed_at", dayBoundsUTC(weekAgo).from)
+        .lte("completed_at", dayBoundsUTC(today).to),
+    ]);
 
   const weightKg = profile?.current_weight_kg ?? null;
 

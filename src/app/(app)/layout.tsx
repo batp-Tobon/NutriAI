@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient, getCurrentUser } from "@/infrastructure/supabase/server";
-import { createConversationRepository } from "@/infrastructure/supabase/repositories";
 import { AppHeader } from "@/components/layout/app-header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { CoachFab } from "@/components/coach/coach-fab";
@@ -35,28 +34,16 @@ export default async function AppLayout({
     redirect("/subscribe");
   }
 
-  // Historial del Coach (solo si tiene IA) para el chat flotante.
+  // El historial del Coach se carga al ABRIR el chat flotante (no aquí), para
+  // que cada navegación sea más rápida.
   const aiEnabled = access?.aiEnabled ?? false;
-  let coachInitial: { role: "user" | "assistant"; content: string }[] = [];
-  if (aiEnabled) {
-    try {
-      const conversations = createConversationRepository(supabase);
-      const conversation = await conversations.getOrCreateDefault(user.id);
-      const messages = await conversations.listMessages(conversation.id, user.id);
-      coachInitial = messages
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-    } catch {
-      coachInitial = [];
-    }
-  }
 
   return (
     <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background">
       <AppHeader profile={profile} email={user.email} isAdmin={isAdmin} />
       <main className="px-safe flex-1 pb-28 pt-1">{children}</main>
       <InstallPrompt />
-      <CoachFab aiEnabled={aiEnabled} initial={coachInitial} />
+      <CoachFab aiEnabled={aiEnabled} />
       <BottomNav />
     </div>
   );
