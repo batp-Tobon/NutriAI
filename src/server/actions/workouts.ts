@@ -420,9 +420,11 @@ const pastWorkoutSchema = z.object({
         sets: z.coerce.number().int().min(1).max(30),
         reps: z.coerce.number().int().min(0).max(100),
         weight: z.coerce.number().min(0).max(1000),
+        gif_url: z.string().optional().nullable(),
+        target: z.string().optional().nullable(),
       }),
     )
-    .max(30)
+    .max(40)
     .default([]),
 });
 
@@ -455,14 +457,17 @@ export async function logPastWorkout(
       ? [
           {
             block: "Sesión",
-            exercises: v.exercises.map(
-              (e): WorkoutExercise => ({
+            exercises: v.exercises.map((e): WorkoutExercise => {
+              const ex: WorkoutExercise = {
                 name: e.name,
                 sets: e.sets,
                 reps: String(e.reps),
                 rest_sec: 60,
-              }),
-            ),
+              };
+              if (e.gif_url) ex.gif_url = e.gif_url;
+              if (e.target) ex.target = e.target;
+              return ex;
+            }),
           },
         ]
       : [];

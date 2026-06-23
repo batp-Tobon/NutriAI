@@ -34,26 +34,29 @@ export default async function PlanPage({
   const supabase = await createClient();
   const repo = createWorkoutRepository(supabase);
 
-  // Perfil cacheado (del layout) + entrenos del día, en paralelo.
-  const [completedDay, scheduledDay, prof] = await Promise.all([
+  // Perfil + entrenos del día + rutinas del usuario, en paralelo.
+  const [completedDay, scheduledDay, prof, allWorkouts] = await Promise.all([
     repo.completedOn(user!.id, date),
     repo.scheduledOn(user!.id, date),
     getCurrentProfile(),
+    repo.list(user!.id, 30),
   ]);
+  const routines = allWorkouts.filter((w) => (w.plan?.length ?? 0) > 0);
+  // Plantillas de rutina (sin completar) para "traer" a un día pasado.
+  const routineTemplates = routines
+    .filter((w) => !w.completed_at)
+    .map((w) => ({ id: w.id, title: w.title, plan: w.plan }));
 
-  // Secciones de "hoy" (generador, rutinas, actividad) solo en el día actual
-  let routines: Awaited<ReturnType<typeof repo.list>> = [];
+  // Secciones de "hoy" (generador, actividad) solo en el día actual
   let dates: string[] = [];
   let aiEnabled = false;
   if (isToday) {
     const since = new Date(Date.now() - 90 * 864e5).toISOString();
-    const [{ access }, workouts, completedDates] = await Promise.all([
+    const [{ access }, completedDates] = await Promise.all([
       getUserAccess(),
-      repo.list(user!.id, 30),
       repo.completedDates(user!.id, since),
     ]);
     aiEnabled = access.aiEnabled;
-    routines = workouts.filter((w) => (w.plan?.length ?? 0) > 0);
     dates = completedDates;
   }
 
@@ -115,7 +118,7 @@ export default async function PlanPage({
           </div>
         </>
       ) : (
-        <LogPastSession date={date} />
+        <LogPastSession date={date} routines={routineTemplates} />
       )}
     </div>
   );

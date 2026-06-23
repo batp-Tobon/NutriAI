@@ -3,13 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Dumbbell, Loader2, Plus, Trash2 } from "lucide-react";
+import { Dumbbell, Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { logPastWorkout } from "@/server/actions/workouts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { WORKOUT_TYPE_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import type { WorkoutType } from "@/types/database";
+import type { WorkoutType, WorkoutBlock } from "@/types/database";
 
 const TYPES: WorkoutType[] = ["gym", "hypertrophy", "home", "cardio", "mobility"];
 
@@ -18,18 +18,80 @@ interface ExRow {
   sets: number;
   reps: number;
   weight: number;
+  gif_url?: string | null;
+  target?: string | null;
 }
+interface RoutineLite {
+  id: string;
+  title: string;
+  plan: WorkoutBlock[];
+}
+type SearchResult = {
+  name: string;
+  gif_url: string;
+  target: string;
+  equipment: string;
+};
 
-/** Registrar lo que se entrenó en un día anterior, con sus ejercicios. */
-export function LogPastSession({ date }: { date: string }) {
+/** Registrar lo que se entrenó un día anterior: trae una rutina o búscala. */
+export function LogPastSession({
+  date,
+  routines,
+}: {
+  date: string;
+  routines: RoutineLite[];
+}) {
   const router = useRouter();
   const [type, setType] = useState<WorkoutType>("gym");
   const [title, setTitle] = useState("");
   const [duration, setDuration] = useState(45);
   const [exercises, setExercises] = useState<ExRow[]>([]);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
   const [pending, start] = useTransition();
 
-  function addRow() {
+  function loadRoutine(r: RoutineLite) {
+    const rows: ExRow[] = r.plan.flatMap((b) =>
+      b.exercises.map((e) => ({
+        name: e.name,
+        sets: e.sets,
+        reps: parseInt(/\d+/.exec(e.reps)?.[0] ?? "10", 10) || 10,
+        weight: 0,
+        gif_url: e.gif_url ?? null,
+        target: e.target ?? null,
+      })),
+    );
+    setExercises(rows);
+    setTitle(r.title);
+    toast.success(`Rutina "${r.title}" cargada`);
+  }
+
+  async function runSearch() {
+    if (!query.trim()) return;
+    setSearching(true);
+    try {
+      const res = await fetch(
+        `/api/exercises/search?q=${encodeURIComponent(query)}`,
+      );
+      const data = await res.json();
+      setResults(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error("Error al buscar");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function addFromSearch(r: SearchResult) {
+    setExercises((x) => [
+      ...x,
+      { name: r.name, sets: 3, reps: 10, weight: 0, gif_url: r.gif_url, target: r.target },
+    ]);
+    setResults([]);
+    setQuery("");
+  }
+  function addBlank() {
     setExercises((x) => [...x, { name: "", sets: 3, reps: 10, weight: 0 }]);
   }
   function patch(idx: number, p: Partial<ExRow>) {
@@ -68,11 +130,28 @@ export function LogPastSession({ date }: { date: string }) {
           <Dumbbell className="h-4 w-4 text-primary" />
           <h2 className="text-sm font-semibold">Registrar lo que entrenaste</h2>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Anota el tipo, y si quieres, los ejercicios que hiciste (cuenta para
-          tus pesos y récords).
-        </p>
 
+        {/* Traer una rutina guardada */}
+        {routines.length > 0 && (
+          <div>
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              Traer una rutina guardada
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {routines.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => loadRoutine(r)}
+                  className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:border-primary/60 hover:text-primary"
+                >
+                  {r.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tipo + nombre + duración */}
         <div className="flex flex-wrap gap-1.5">
           {TYPES.map((t) => (
             <button
@@ -155,12 +234,50 @@ export function LogPastSession({ date }: { date: string }) {
           </div>
         )}
 
-        <button
-          onClick={addRow}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs font-medium text-muted-foreground hover:text-primary"
-        >
-          <Plus className="h-3.5 w-3.5" /> Añadir ejercicio
-        </button>
+        {/* Buscar ejercicio en el catálogo */}
+        <div className="space-y-2 rounded-xl border border-dashed border-border p-2.5">
+          <div className="flex gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runSearch()}
+              placeholder="Buscar ejercicio (sentadilla, press…)"
+              className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-base"
+            />
+            <Button size="sm" variant="secondary" className="h-9" onClick={runSearch} disabled={searching}>
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+            <Button size="sm" variant="outline" className="h-9" onClick={addBlank}>
+              <Plus className="h-4 w-4" /> Manual
+            </Button>
+          </div>
+          {results.length > 0 && (
+            <div className="max-h-56 space-y-1 overflow-y-auto">
+              {results.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => addFromSearch(r)}
+                  className="flex w-full items-center gap-2 rounded-lg bg-secondary/40 p-1.5 text-left hover:bg-secondary"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/exercise-gif?u=${encodeURIComponent(r.gif_url)}`}
+                    alt={r.name}
+                    loading="lazy"
+                    className="h-9 w-9 shrink-0 rounded-lg bg-white object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium capitalize">{r.name}</p>
+                    <p className="truncate text-[11px] capitalize text-muted-foreground">
+                      {r.target} · {r.equipment}
+                    </p>
+                  </div>
+                  <Plus className="h-4 w-4 shrink-0 text-primary" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <Button className="w-full" onClick={log} disabled={pending}>
           {pending ? (
