@@ -12,6 +12,7 @@ import { fetchExercisePool } from "@/infrastructure/exercisedb/client";
 import { getUserAccess } from "@/server/access";
 import { env, isOpenAIConfigured } from "@/lib/env";
 import { WORKOUT_TYPE_LABELS } from "@/lib/constants";
+import { appNoonISO, todayISO } from "@/lib/utils";
 import { BASE_WEEK } from "@/lib/base-week";
 import type {
   WorkoutBlock,
@@ -376,13 +377,17 @@ export async function deleteWorkout(id: string): Promise<{ ok: boolean }> {
 export async function logQuickSession(
   type: WorkoutType,
   dateISO?: string,
+  durationMin?: number,
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "No autenticado" };
 
-  const completedAt = dateISO
-    ? `${dateISO}T12:00:00`
-    : new Date().toISOString();
+  // Fecha al mediodía local del día indicado (no permite futuro); si no, ahora.
+  const today = todayISO();
+  const completedAt =
+    dateISO && dateISO <= today ? appNoonISO(dateISO) : new Date().toISOString();
+  const duration =
+    durationMin && durationMin > 0 ? Math.min(360, Math.round(durationMin)) : 45;
 
   const supabase = await createClient();
   try {
@@ -390,7 +395,7 @@ export async function logQuickSession(
       user_id: user.id,
       title: `Sesión de ${WORKOUT_TYPE_LABELS[type]}`,
       workout_type: type,
-      duration_min: 45,
+      duration_min: duration,
       plan: [],
       ai_generated: false,
       completed_at: completedAt,

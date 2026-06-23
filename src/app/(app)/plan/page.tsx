@@ -12,6 +12,7 @@ import { WorkoutCard } from "@/components/workouts/workout-card";
 import { ActivityTracker } from "@/components/workouts/activity-tracker";
 import { LoadBaseWeekButton } from "@/components/workouts/load-base-week";
 import { WorkoutDaySummary } from "@/components/workouts/day-summary";
+import { LogPastSession } from "@/components/workouts/log-past-session";
 import { DayNav } from "@/components/log/day-nav";
 import { Button } from "@/components/ui/button";
 import { todayISO } from "@/lib/utils";
@@ -114,10 +115,7 @@ export default async function PlanPage({
           </div>
         </>
       ) : (
-        <p className="text-center text-xs text-muted-foreground">
-          Estás viendo el historial. Vuelve a «Hoy» para entrenar o crear
-          rutinas.
-        </p>
+        <LogPastSession date={date} />
       )}
     </div>
   );
