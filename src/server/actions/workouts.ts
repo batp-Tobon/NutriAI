@@ -408,6 +408,102 @@ export async function logQuickSession(
   return { ok: true };
 }
 
+const pastWorkoutSchema = z.object({
+  type: z.enum(["home", "gym", "cardio", "hypertrophy", "mobility"]),
+  dateISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  durationMin: z.coerce.number().int().min(0).max(360).optional(),
+  title: z.string().max(120).optional(),
+  exercises: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        sets: z.coerce.number().int().min(1).max(30),
+        reps: z.coerce.number().int().min(0).max(100),
+        weight: z.coerce.number().min(0).max(1000),
+      }),
+    )
+    .max(30)
+    .default([]),
+});
+
+export type PastWorkoutInput = z.input<typeof pastWorkoutSchema>;
+
+/**
+ * Registra un entrenamiento de un día PASADO con sus ejercicios (para llevar el
+ * control). Crea la sesión completada con su plan y guarda las series en
+ * `workout_set_logs` para que cuente en pesos/récords. Nunca fecha en el futuro.
+ */
+export async function logPastWorkout(
+  input: PastWorkoutInput,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "No autenticado" };
+
+  const parsed = pastWorkoutSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Datos inválidos" };
+  const v = parsed.data;
+  if (v.dateISO > todayISO()) {
+    return { ok: false, error: "No puedes registrar en el futuro" };
+  }
+
+  const completedAt = appNoonISO(v.dateISO);
+  const duration =
+    v.durationMin && v.durationMin > 0 ? Math.min(360, v.durationMin) : 45;
+
+  const plan: WorkoutBlock[] =
+    v.exercises.length > 0
+      ? [
+          {
+            block: "Sesión",
+            exercises: v.exercises.map(
+              (e): WorkoutExercise => ({
+                name: e.name,
+                sets: e.sets,
+                reps: String(e.reps),
+                rest_sec: 60,
+              }),
+            ),
+          },
+        ]
+      : [];
+
+  const supabase = await createClient();
+  try {
+    const created = await createWorkoutRepository(supabase).create({
+      user_id: user.id,
+      title: v.title?.trim() || `Sesión de ${WORKOUT_TYPE_LABELS[v.type]}`,
+      workout_type: v.type,
+      duration_min: duration,
+      plan,
+      ai_generated: false,
+      completed_at: completedAt,
+    });
+
+    // Guarda las series para pesos/récords (defensivo si no se corrió 0012).
+    const rows = v.exercises.flatMap((e) =>
+      Array.from({ length: e.sets }, (_, i) => ({
+        user_id: user.id,
+        workout_id: created.id,
+        exercise_name: e.name,
+        set_number: i + 1,
+        weight_kg: e.weight,
+        reps: e.reps,
+        performed_at: completedAt,
+      })),
+    );
+    if (rows.length > 0) {
+      await supabase.from("workout_set_logs").insert(rows);
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error" };
+  }
+
+  revalidatePath("/plan");
+  revalidatePath("/progress");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
 /** Programa (o desprograma) una rutina para una fecha. */
 export async function scheduleWorkout(
   id: string,
