@@ -11,6 +11,7 @@ import {
   getProductByBarcode,
   searchOpenFoodFacts,
 } from "@/infrastructure/openfoodfacts/client";
+import { appNoonISO, todayISO } from "@/lib/utils";
 import type { FoodSearchItem } from "@/core/domain/entities";
 
 const itemSchema = z.object({
@@ -29,6 +30,11 @@ const mealSchema = z.object({
   image_url: z.string().nullable().optional(),
   ai_confidence: z.number().min(0).max(1).nullable().optional(),
   items: z.array(itemSchema).min(1),
+  // Día al que pertenece la comida (YYYY-MM-DD). Permite registrar días pasados.
+  consumedDateISO: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 export type SaveMealInput = z.input<typeof mealSchema>;
@@ -48,6 +54,14 @@ export async function saveMeal(
   const supabase = await createClient();
   const meals = createMealRepository(supabase);
 
+  // Si se indica un día pasado válido, fecha la comida a ese día (mediodía local);
+  // si no, usa el momento actual. Nunca permite fechar en el futuro.
+  const today = todayISO();
+  const consumedAt =
+    v.consumedDateISO && v.consumedDateISO < today
+      ? appNoonISO(v.consumedDateISO)
+      : new Date().toISOString();
+
   try {
     await meals.create(
       {
@@ -57,7 +71,7 @@ export async function saveMeal(
         source: v.source,
         image_url: v.image_url ?? null,
         ai_confidence: v.ai_confidence ?? null,
-        consumed_at: new Date().toISOString(),
+        consumed_at: consumedAt,
         total_kcal: 0,
         total_protein: 0,
         total_carbs: 0,

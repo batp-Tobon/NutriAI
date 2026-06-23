@@ -97,8 +97,17 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([arr], { type: mime });
 }
 
-export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
+export function LogClient({
+  aiEnabled,
+  date,
+  today,
+}: {
+  aiEnabled: boolean;
+  date: string;
+  today: string;
+}) {
   const router = useRouter();
+  const isToday = date === today;
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
@@ -327,6 +336,8 @@ export function LogClient({ aiEnabled }: { aiEnabled: boolean }) {
         image_url,
         ai_confidence: confidence,
         items,
+        // Si estoy en un día anterior, la comida se fecha en ese día.
+        consumedDateISO: isToday ? undefined : date,
       });
       if (!res.ok) throw new Error(res.error);
       toast.success("Comida registrada");

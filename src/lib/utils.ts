@@ -56,6 +56,11 @@ export function dayBoundsUTC(dateISO: string): { from: string; to: string } {
   };
 }
 
+/** Mediodía local de una fecha (YYYY-MM-DD) como ISO — para fechar registros en días pasados. */
+export function appNoonISO(dateISO: string): string {
+  return new Date(`${dateISO}T12:00:00${APP_TZ_OFFSET}`).toISOString();
+}
+
 /** Suma o resta días a una fecha ISO (YYYY-MM-DD). */
 export function shiftDateISO(dateISO: string, days: number): string {
   const d = new Date(`${dateISO}T12:00:00Z`);

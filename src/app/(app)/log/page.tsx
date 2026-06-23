@@ -65,14 +65,14 @@ export default async function LogPage({
         </Link>
       )}
 
-      {isToday ? (
-        <LogClient aiEnabled={access.aiEnabled} />
-      ) : (
-        <p className="rounded-xl border border-border/60 bg-secondary/30 p-3 text-center text-xs text-muted-foreground">
-          Estás viendo un día anterior. Tus registros quedan guardados; para
-          añadir comidas vuelve a «Hoy».
+      {!isToday && (
+        <p className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-center text-xs text-muted-foreground">
+          Registrando para un <b className="text-foreground">día anterior</b>. Si
+          te faltó alguna comida, agrégala aquí.
         </p>
       )}
+
+      <LogClient aiEnabled={access.aiEnabled} date={date} today={today} />
 
       {/* Resumen del día */}
       {meals.length > 0 && (
