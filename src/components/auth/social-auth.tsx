@@ -7,11 +7,11 @@ import { createClient } from "@/infrastructure/supabase/client";
 import { Button } from "@/components/ui/button";
 import { env } from "@/lib/env";
 
-type SocialProvider = "google" | "apple" | "facebook";
+type SocialProvider = "google" | "azure" | "facebook";
 
 const PROVIDERS: { id: SocialProvider; label: string; Icon: () => React.ReactElement }[] = [
   { id: "google", label: "Continuar con Google", Icon: GoogleIcon },
-  { id: "apple", label: "Continuar con Apple", Icon: AppleIcon },
+  { id: "azure", label: "Continuar con Outlook", Icon: MicrosoftIcon },
   { id: "facebook", label: "Continuar con Facebook", Icon: FacebookIcon },
 ];
 
@@ -23,7 +23,11 @@ export function SocialAuth() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: provider as Provider,
-      options: { redirectTo: `${env.appUrl}/auth/callback` },
+      options: {
+        redirectTo: `${env.appUrl}/auth/callback`,
+        // Azure (Outlook/Microsoft) necesita pedir el correo explícitamente.
+        ...(provider === "azure" ? { scopes: "email" } : {}),
+      },
     });
     if (error) {
       toast.error(error.message);
@@ -60,10 +64,13 @@ function GoogleIcon() {
   );
 }
 
-function AppleIcon() {
+function MicrosoftIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-foreground" aria-hidden>
-      <path d="M16.4 12.9c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.8-3.5.8-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.2 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.3 5.6c.6-.8 1.1-1.9.9-3-1 0-2.1.6-2.8 1.4-.6.7-1.1 1.8-1 2.9 1.1.1 2.2-.5 2.9-1.3z" />
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+      <path fill="#F25022" d="M3 3h8.5v8.5H3z" />
+      <path fill="#7FBA00" d="M12.5 3H21v8.5h-8.5z" />
+      <path fill="#00A4EF" d="M3 12.5h8.5V21H3z" />
+      <path fill="#FFB900" d="M12.5 12.5H21V21h-8.5z" />
     </svg>
   );
 }

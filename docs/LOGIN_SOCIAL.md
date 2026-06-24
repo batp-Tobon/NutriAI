@@ -1,14 +1,16 @@
-# Login social (Google · Apple · Facebook)
+# Login social (Google · Outlook · Facebook)
 
 Los botones ya están en la app (pantalla de login/registro). Para que **funcionen**
 hay que **activar cada proveedor en Supabase** y crear su "app" OAuth en cada
 plataforma. El código no requiere cambios.
 
-## Importante: ¿Instagram?
+## Notas
 
-Instagram **no** es un proveedor de login independiente. Las cuentas de Instagram
-se autentican con **Facebook Login** (ambas son de Meta). Por eso agregamos
-**Facebook**, que cubre a los usuarios de Meta. No existe un botón "Instagram".
+- **Outlook/Microsoft/Hotmail/Live**: en Supabase el proveedor se llama **Azure**.
+  Un solo botón ("Outlook") cubre todas las cuentas Microsoft.
+- **Instagram** no es un proveedor de login independiente: se autentica con
+  **Facebook Login** (ambas son de Meta). Por eso usamos **Facebook**.
+- **Apple** se quitó (requiere cuenta de pago de USD $99/año).
 
 ## Paso 0 — URLs en Supabase
 
@@ -41,18 +43,18 @@ El **callback de Supabase** que pedirá cada plataforma es:
 5. Pon la app de Meta en modo **Live** (mientras esté en "Development" solo entran
    los testers que agregues).
 
-## Apple (requiere Apple Developer, USD $99/año)
+## Outlook / Microsoft (gratis) — proveedor "Azure"
 
-1. Apple Developer → **Certificates, Identifiers & Profiles**:
-   - Crea un **App ID** y un **Services ID** (este es el "client id").
-   - Habilita "Sign in with Apple" y registra el dominio + el callback de Supabase.
-   - Crea una **Key** para "Sign in with Apple" y descarga el `.p8`.
-2. Supabase → **Authentication → Providers → Apple** → completa Services ID, Team ID,
-   Key ID y la clave `.p8`. **Activa**.
-
-> Apple es el más laborioso y tiene costo anual. Si aún no tienes cuenta de Apple
-> Developer, puedes empezar solo con **Google + Facebook** (ambos gratis) y dejar
-> Apple para cuando publiques en la App Store.
+1. [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** →
+   **App registrations → New registration**.
+2. Nombre: NutriAI. En "Supported account types" elige **"Accounts in any
+   organizational directory and personal Microsoft accounts"** (para Outlook/Hotmail/Live).
+3. **Redirect URI** → tipo **Web** → pega el callback de Supabase (arriba).
+4. Crea la app y copia el **Application (client) ID**.
+5. **Certificates & secrets → New client secret** → copia el **Value** del secreto.
+6. Supabase → **Authentication → Providers → Azure** → pega Client ID y Secret.
+   En "Azure Tenant URL" deja `https://login.microsoftonline.com/common` (cuentas
+   personales). **Activa**.
 
 ## Probar
 
