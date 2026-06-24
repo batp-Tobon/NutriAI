@@ -8,9 +8,12 @@ export function Toaster(props: ToasterProps) {
   return (
     <Sonner
       theme="dark"
-      // Arriba (debajo del notch/isla) para no tapar el menú inferior.
+      // Arriba para no tapar el menú inferior. Mínimo 64px garantizado para que
+      // SIEMPRE quede debajo de la isla dinámica/notch, y respeta el área segura
+      // cuando es mayor (PWA instalada en iPhone con isla).
       position="top-center"
-      offset="calc(env(safe-area-inset-top, 0px) + 12px)"
+      offset="max(64px, calc(env(safe-area-inset-top, 0px) + 16px))"
+      mobileOffset="max(64px, calc(env(safe-area-inset-top, 0px) + 16px))"
       // Se cierran solas en ~2.5 s y se pueden cerrar a mano.
       duration={2500}
       closeButton
