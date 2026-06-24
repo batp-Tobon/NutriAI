@@ -8,9 +8,12 @@ export function Toaster(props: ToasterProps) {
   return (
     <Sonner
       theme="dark"
-      position="bottom-center"
-      // Sobre la barra de navegación inferior y fuera de la isla dinámica/notch
-      offset="calc(env(safe-area-inset-bottom, 0px) + 86px)"
+      // Arriba (debajo del notch/isla) para no tapar el menú inferior.
+      position="top-center"
+      offset="calc(env(safe-area-inset-top, 0px) + 12px)"
+      // Se cierran solas en ~2.5 s y se pueden cerrar a mano.
+      duration={2500}
+      closeButton
       toastOptions={{
         classNames: {
           toast:
