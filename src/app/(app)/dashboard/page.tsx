@@ -29,6 +29,7 @@ import { Progress } from "@/components/ui/progress";
 import { MacroRing } from "@/components/dashboard/macro-ring";
 import { SleepLogger } from "@/components/dashboard/sleep-logger";
 import { WaterCard } from "@/components/dashboard/water-card";
+import { WelcomeSubscription } from "@/components/dashboard/welcome-subscription";
 import { InsightsCard } from "@/components/dashboard/insights-card";
 import { WeightSparkline } from "@/components/charts/weight-sparkline-lazy";
 import { SupportBanner } from "@/components/subscription/support-banner";
@@ -115,6 +116,14 @@ export default async function DashboardPage() {
   const isAdmin = env.adminEmails.includes((user!.email ?? "").toLowerCase());
   const access = getAccess(profile, isAdmin);
 
+  // Bienvenida de suscripción: una sola vez por periodo activado (manual o Wompi).
+  const showWelcome =
+    access.state === "subscribed" &&
+    profile?.subscription_started_at != null &&
+    (profile.welcome_seen_at == null ||
+      new Date(profile.welcome_seen_at) <
+        new Date(profile.subscription_started_at));
+
   // Déficit de hoy (si el perfil tiene los datos para estimar el metabolismo)
   const deficitReady =
     profile?.sex != null &&
@@ -152,6 +161,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-4 animate-fade-in">
+      <WelcomeSubscription
+        show={showWelcome}
+        daysLeft={access.daysLeft}
+        plan={access.plan}
+        startedAt={profile?.subscription_started_at ?? null}
+      />
       <SupportBanner state={access.state} daysLeft={access.daysLeft} />
 
       {gymDue && (

@@ -811,3 +811,14 @@ create policy payment_proofs_rw on storage.objects for all
   );
 
 
+-- >>> 20260608000016_welcome_seen.sql >>>
+-- ============================================================================
+-- NutriAI Â· 0016 Â· Bienvenida de suscripciÃ³n (mostrar una sola vez)
+-- Marca cuÃ¡ndo el usuario vio la tarjeta de "suscripciÃ³n activa" para no
+-- repetirla en el mismo periodo. Ejecuta en el SQL Editor de Supabase.
+-- ============================================================================
+
+alter table public.profiles
+  add column if not exists welcome_seen_at timestamptz;
+
+

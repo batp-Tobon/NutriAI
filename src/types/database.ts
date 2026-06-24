@@ -50,6 +50,7 @@ export interface Database {
           ai_period_start: string | null;
           subscription_started_at: string | null;
           renewal_notified_at: string | null;
+          welcome_seen_at: string | null;
           gym_payment_day: number | null;
           gym_last_reminded_at: string | null;
           created_at: string;

@@ -140,5 +140,11 @@ create policy payment_proofs_rw on storage.objects for all
   );
 
 -- ============================================================================
+-- 0016 · Bienvenida de suscripción (mostrar una sola vez)
+-- ============================================================================
+alter table public.profiles
+  add column if not exists welcome_seen_at timestamptz;
+
+-- ============================================================================
 -- LISTO. Si no salió ningún error en rojo, ya quedó todo.
 -- ============================================================================
