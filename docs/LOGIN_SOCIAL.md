@@ -1,17 +1,19 @@
-# Login social (Google · Facebook)
+# Login social (Google) — Facebook opcional
 
-Los botones ya están en la app (pantalla de login/registro). Para que **funcionen**
-hay que **activar cada proveedor en Supabase** y crear su "app" OAuth en cada
-plataforma. El código no requiere cambios.
+Hoy el login social activo es **Google** (botón en login/registro). Para activarlo
+basta configurar el proveedor en Supabase; el código no cambia. Más abajo quedan
+los pasos de **Facebook** por si se quiere agregar después (requiere ponerlo en
+modo Live + política de privacidad).
 
 ## Notas
 
-- **Instagram** no es un proveedor de login independiente: se autentica con
-  **Facebook Login** (ambas son de Meta). Por eso usamos **Facebook**.
 - **Apple** se descartó (requiere cuenta de pago de USD $99/año).
 - **Outlook/Microsoft** se descartó: una cuenta personal de Hotmail ya no puede
-  crear apps OAuth sin un directorio de Azure (requiere cuenta de Azure con
-  tarjeta o un tenant de prueba). Con Google + Facebook se cubre a la mayoría.
+  crear apps OAuth sin un directorio de Azure (cuenta de Azure con tarjeta o un
+  tenant de prueba).
+- **Instagram** no es un proveedor independiente: va por **Facebook Login** (Meta).
+- Para volver a mostrar el botón de Facebook, agrega su entrada en
+  `src/components/auth/social-auth.tsx` (el manejo es genérico).
 
 ## Paso 0 — URLs en Supabase
 
